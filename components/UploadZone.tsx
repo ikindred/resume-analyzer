@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
+import { getResumeFileKind } from "@/lib/resumeFileFormats";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -8,11 +9,6 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function isPdf(file: File): boolean {
-  const lower = file.name.toLowerCase();
-  return file.type === "application/pdf" || lower.endsWith(".pdf");
 }
 
 export type UploadZoneProps = {
@@ -34,8 +30,11 @@ export function UploadZone({
         onFileSelect(null, null);
         return;
       }
-      if (!isPdf(file)) {
-        onFileSelect(null, "Please choose a PDF file.");
+      if (!getResumeFileKind(file)) {
+        onFileSelect(
+          null,
+          "Please choose a PDF or Word file (.pdf or .docx).",
+        );
         return;
       }
       if (file.size > MAX_BYTES) {
@@ -87,7 +86,7 @@ export function UploadZone({
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
           className="sr-only"
           onChange={onInputChange}
           disabled={disabled}
@@ -111,12 +110,14 @@ export function UploadZone({
             </svg>
           </span>
           <p className="text-sm font-medium text-slate-200">
-            Drag and drop a PDF here, or{" "}
+            Drag and drop a resume here, or{" "}
             <span className="text-accent underline decoration-accent/50 underline-offset-2 group-hover:decoration-accent">
               browse
             </span>
           </p>
-          <p className="text-xs text-slate-500">PDF only · max 5MB</p>
+          <p className="text-xs text-slate-500">
+            PDF or Word (.docx) · max 5MB
+          </p>
         </div>
       </button>
 

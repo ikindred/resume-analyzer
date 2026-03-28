@@ -76,8 +76,9 @@ export default function Home() {
             ResumeIQ
           </h1>
           <p className="mx-auto mt-3 max-w-lg text-slate-400">
-            Upload a PDF resume for an AI-powered summary, skills overview, and
-            hiring recommendation.
+            Upload a PDF or Word (.docx) resume—exported from Microsoft Word or
+            Google Docs—for an AI-powered summary, skills overview, and hiring
+            recommendation.
           </p>
         </header>
 
