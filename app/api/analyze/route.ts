@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import mammoth from "mammoth";
-import { PDFParse, PasswordException } from "pdf-parse";
 import { analyzeResume } from "@/lib/analyzeResume";
+import { extractResumeText } from "@/lib/extractResumeText";
+import { parseHrCriteriaJson } from "@/lib/hrCriteria";
 import { getResumeFileKind } from "@/lib/resumeFileFormats";
 
 export const runtime = "nodejs";
@@ -9,11 +9,14 @@ export const runtime = "nodejs";
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  let parser: PDFParse | null = null;
-
   try {
     const formData = await request.formData();
     const entry = formData.get("file");
+    const criteria = parseHrCriteriaJson(
+      typeof formData.get("criteria") === "string"
+        ? (formData.get("criteria") as string)
+        : null,
+    );
 
     if (!(entry instanceof File)) {
       return NextResponse.json(
@@ -44,19 +47,11 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await entry.arrayBuffer());
+    const extracted = await extractResumeText(kind, buffer);
 
-    let text: string;
-
-    if (kind === "pdf") {
-      parser = new PDFParse({ data: buffer });
-      let textResult;
-      try {
-        textResult = await parser.getText();
-      } catch (e) {
-        const isPassword =
-          e instanceof PasswordException ||
-          (e instanceof Error && e.name === "PasswordException");
-        if (isPassword) {
+    if ("error" in extracted) {
+      switch (extracted.error.kind) {
+        case "password_pdf":
           return NextResponse.json(
             {
               error:
@@ -64,44 +59,34 @@ export async function POST(request: Request) {
             },
             { status: 400 },
           );
-        }
-        throw e;
-      }
-      text = textResult.text?.trim() ?? "";
-      if (!text.length) {
-        return NextResponse.json(
-          {
-            error:
-              "Could not extract text from this PDF. It may be empty, scanned, or image-only.",
-          },
-          { status: 400 },
-        );
-      }
-    } else {
-      try {
-        const raw = await mammoth.extractRawText({ buffer });
-        text = raw.value?.trim() ?? "";
-      } catch {
-        return NextResponse.json(
-          {
-            error:
-              "Could not read this Word file. It may be corrupted or not a valid .docx.",
-          },
-          { status: 400 },
-        );
-      }
-      if (!text.length) {
-        return NextResponse.json(
-          {
-            error:
-              "Could not extract text from this document. It may be empty.",
-          },
-          { status: 400 },
-        );
+        case "empty_pdf":
+          return NextResponse.json(
+            {
+              error:
+                "Could not extract text from this PDF. It may be empty, scanned, or image-only.",
+            },
+            { status: 400 },
+          );
+        case "bad_docx":
+          return NextResponse.json(
+            {
+              error:
+                "Could not read this Word file. It may be corrupted or not a valid .docx.",
+            },
+            { status: 400 },
+          );
+        case "empty_docx":
+          return NextResponse.json(
+            {
+              error:
+                "Could not extract text from this document. It may be empty.",
+            },
+            { status: 400 },
+          );
       }
     }
 
-    const analysis = await analyzeResume(text);
+    const analysis = await analyzeResume(extracted.text, criteria);
     return NextResponse.json(analysis);
   } catch (err) {
     const message =
@@ -136,13 +121,5 @@ export async function POST(request: Request) {
       { error: "Something went wrong while analyzing the resume." },
       { status: 500 },
     );
-  } finally {
-    if (parser) {
-      try {
-        await parser.destroy();
-      } catch {
-        /* ignore */
-      }
-    }
   }
 }
