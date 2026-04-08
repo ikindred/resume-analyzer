@@ -2,6 +2,7 @@
 
 import type { HrCriteria } from "@/lib/hrCriteria";
 import type { RankedCandidate } from "@/lib/rankResult";
+import type { ResumeAnalysis } from "@/lib/analyzeResume";
 
 function wrapLine(
   text: string,
@@ -160,6 +161,126 @@ export async function downloadRankingPdf(
   const a = document.createElement("a");
   a.href = url;
   a.download = `resumeiq-ranking-${new Date().toISOString().slice(0, 10)}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadSingleResumePdf(
+  criteria: HrCriteria,
+  analysis: ResumeAnalysis,
+): Promise<void> {
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const margin = 48;
+  const maxWidth = pageWidth - 2 * margin;
+  let page = pdf.addPage([pageWidth, pageHeight]);
+  let y = pageHeight - margin;
+
+  const body = 9;
+  const title = 14;
+  const sub = 11;
+  const gap = 12;
+
+  const ensureSpace = (need: number) => {
+    if (y < margin + need) {
+      page = pdf.addPage([pageWidth, pageHeight]);
+      y = pageHeight - margin;
+    }
+  };
+
+  const drawTextLines = (text: string, size: number, bold = false) => {
+    const f = bold ? fontBold : font;
+    const lines = text
+      .split(/\n/)
+      .flatMap((p) => wrapLine(p, f, size, maxWidth));
+    for (const ln of lines) {
+      ensureSpace(gap);
+      page.drawText(ln, {
+        x: margin,
+        y,
+        size,
+        font: f,
+        color: rgb(0.1, 0.1, 0.12),
+      });
+      y -= gap * (size / body);
+    }
+  };
+
+  page.drawText("ResumeIQ — Candidate report", {
+    x: margin,
+    y,
+    size: title,
+    font: fontBold,
+    color: rgb(0.05, 0.05, 0.08),
+  });
+  y -= 22;
+
+  drawTextLines(`Generated: ${new Date().toLocaleString()}`, body);
+  y -= 4;
+
+  drawTextLines("HR criteria summary", sub, true);
+  drawTextLines(criteriaSummary(criteria), body);
+  y -= 6;
+
+  drawTextLines("Candidate", sub, true);
+  drawTextLines(`Name: ${analysis.candidateName || "Candidate"}`, body);
+  const contact = [
+    analysis.contactInfo.email,
+    analysis.contactInfo.phone,
+    analysis.contactInfo.location,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (contact) drawTextLines(`Contact: ${contact}`, body);
+  drawTextLines(`Recommendation: ${analysis.recommendation}`, body, true);
+  drawTextLines(`Fit score: ${analysis.assessment.fitScore}/10`, body, true);
+  y -= 6;
+
+  drawTextLines("Summary", sub, true);
+  drawTextLines(analysis.summary || "—", body);
+
+  const skills = (analysis.skills ?? []).filter((s) => s.trim());
+  if (skills.length) {
+    y -= 4;
+    drawTextLines("Skills (top)", sub, true);
+    drawTextLines(skills.slice(0, 18).join(", "), body);
+  }
+
+  const good = (analysis.goodThings ?? []).slice(0, 6);
+  const bad = (analysis.badThings ?? []).slice(0, 6);
+  if (good.length || bad.length) {
+    y -= 4;
+    drawTextLines("Signals", sub, true);
+    if (good.length) drawTextLines(`Good: ${good.join("; ")}`, body);
+    if (bad.length) drawTextLines(`Risks: ${bad.join("; ")}`, body);
+  }
+
+  const ratings = (analysis.criteriaRatings ?? []).slice(0, 12);
+  if (ratings.length) {
+    y -= 4;
+    drawTextLines("Criteria ratings (top)", sub, true);
+    for (const r of ratings) {
+      drawTextLines(`${r.criterion} — ${r.rating}/5`, body, true);
+      if (r.evidence?.trim()) drawTextLines(`Evidence: ${r.evidence}`, body);
+      y -= 2;
+    }
+  }
+
+  y -= 4;
+  drawTextLines("Justification", sub, true);
+  drawTextLines(analysis.assessment.justification || "—", body);
+
+  const bytes = await pdf.save();
+  const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `resumeiq-candidate-${new Date().toISOString().slice(0, 10)}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }

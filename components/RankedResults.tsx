@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CandidateComparison } from "@/components/CandidateComparison";
+import { buildRankingCsv } from "@/lib/csvExport";
 import { downloadRankingPdf } from "@/lib/pdfReport";
 import type { RankApiResponse } from "@/lib/rankResult";
 import type { Recommendation } from "@/lib/analyzeResume";
@@ -27,10 +28,15 @@ type Props = {
 
 export function RankedResults({ data }: Props) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [csvBusy, setCsvBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
   const [saveBusyId, setSaveBusyId] = useState<string | null>(null);
   const [saveHint, setSaveHint] = useState<string | null>(null);
+  const [jdItems, setJdItems] = useState<
+    Array<{ id: string; title: string | null; jd_text: string }>
+  >([]);
+  const [jdId, setJdId] = useState<string>("");
 
   const onPdf = async () => {
     setPdfBusy(true);
@@ -45,8 +51,72 @@ export function RankedResults({ data }: Props) {
     }
   };
 
+  const onCsv = () => {
+    setCsvBusy(true);
+    try {
+      const csv = buildRankingCsv(data);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "resumeiq-ranking.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setCsvBusy(false);
+    }
+  };
+
   const selected = data.candidates.filter((c) => selectedIds.has(c.fileName));
   const compareReady = selected.length >= 2 && selected.length <= 3;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/jds");
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+        const items: unknown[] = Array.isArray(json.items) ? (json.items as unknown[]) : [];
+        if (!cancelled) {
+          setJdItems(
+            items
+              .filter((x): x is { id: string; title: string | null; jd_text: string } => {
+                if (typeof x !== "object" || x === null) return false;
+                const o = x as Record<string, unknown>;
+                return typeof o.id === "string";
+              })
+              .map((x) => {
+                const o = x as Record<string, unknown>;
+                return {
+                  id: String(o.id),
+                  title: typeof o.title === "string" ? o.title : null,
+                  jd_text: typeof o.jd_text === "string" ? o.jd_text : "",
+                };
+              }),
+          );
+        }
+      } catch {
+        // ignore: saving candidates still works without JD linking
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const jdOptions = useMemo(() => {
+    return jdItems.map((jd) => {
+      const title =
+        jd.title?.trim() ||
+        (jd.jd_text.trim()
+          ? `${jd.jd_text.trim().slice(0, 60)}${jd.jd_text.trim().length > 60 ? "…" : ""}`
+          : "Untitled JD");
+      return { id: jd.id, label: title };
+    });
+  }, [jdItems]);
 
   const saveCandidate = async (fileName: string) => {
     const c = data.candidates.find((x) => x.fileName === fileName);
@@ -58,6 +128,7 @@ export function RankedResults({ data }: Props) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          jobDescriptionId: jdId || undefined,
           fileName: c.fileName,
           rank: c.rank,
           rankScore: c.rankScore,
@@ -86,6 +157,23 @@ export function RankedResults({ data }: Props) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold text-white">Ranking results</h2>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex min-h-[44px] items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3">
+            <span className="text-xs font-semibold text-slate-300">
+              Link JD
+            </span>
+            <select
+              value={jdId}
+              onChange={(e) => setJdId(e.target.value)}
+              className="h-9 max-w-[240px] rounded-md border border-white/10 bg-navy-950/40 px-2 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <option value="">None</option>
+              {jdOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="button"
             onClick={() => setCompareOpen(true)}
@@ -93,6 +181,14 @@ export function RankedResults({ data }: Props) {
             className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-navy-950 shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             Compare ({selected.length})
+          </button>
+          <button
+            type="button"
+            onClick={onCsv}
+            disabled={csvBusy || data.candidates.length === 0}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {csvBusy ? "Building CSV…" : "Download CSV"}
           </button>
           <button
             type="button"

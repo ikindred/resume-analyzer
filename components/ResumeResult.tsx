@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { Recommendation, ResumeAnalysis } from "@/lib/analyzeResume";
+import type { HrCriteria } from "@/lib/hrCriteria";
+import { InterviewQuestions } from "@/components/InterviewQuestions";
 
 function recommendationBadgeClass(
   r: Recommendation,
@@ -59,7 +61,13 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-export function ResumeResult({ data }: { data: ResumeAnalysis }) {
+export function ResumeResult({
+  data,
+  criteria,
+}: {
+  data: ResumeAnalysis;
+  criteria?: HrCriteria;
+}) {
   const badge = recommendationBadgeClass(data.recommendation);
   const verdict = interviewVerdict(data.recommendation);
   const skills = data.skills?.filter((s) => s.trim()) ?? [];
@@ -312,6 +320,12 @@ export function ResumeResult({ data }: { data: ResumeAnalysis }) {
           {data.assessment.justification}
         </p>
       </div>
+
+      {criteria ? (
+        <div className="border-t border-slate-200 bg-slate-100 px-6 py-8 sm:px-10">
+          <InterviewQuestions analysis={data} criteria={criteria} />
+        </div>
+      ) : null}
     </article>
   );
 }

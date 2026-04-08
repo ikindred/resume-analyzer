@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { HrCriteriaForm } from "@/components/HrCriteriaForm";
 import { JobDescriptionInput } from "@/components/JobDescriptionInput";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
@@ -11,6 +11,7 @@ import { UploadZone } from "@/components/UploadZone";
 import type { ResumeAnalysis } from "@/lib/analyzeResume";
 import { EMPTY_HR_CRITERIA, type HrCriteria } from "@/lib/hrCriteria";
 import type { RankApiResponse } from "@/lib/rankResult";
+import { downloadSingleResumePdf } from "@/lib/pdfReport";
 
 type Mode = "single" | "batch";
 type CriteriaInputMode = "manual" | "jd";
@@ -20,6 +21,15 @@ export default function Home() {
   const [criteria, setCriteria] = useState<HrCriteria>(EMPTY_HR_CRITERIA);
   const [criteriaInputMode, setCriteriaInputMode] =
     useState<CriteriaInputMode>("manual");
+  const [singlePdfBusy, setSinglePdfBusy] = useState(false);
+  const [presetItems, setPresetItems] = useState<
+    Array<{ id: string; name: string; criteria: HrCriteria }>
+  >([]);
+  const [presetLoading, setPresetLoading] = useState(false);
+  const [presetError, setPresetError] = useState<string | null>(null);
+  const [presetName, setPresetName] = useState("");
+  const [presetSaveBusy, setPresetSaveBusy] = useState(false);
+  const [presetSelectedId, setPresetSelectedId] = useState<string>("");
 
   const [file, setFile] = useState<File | null>(null);
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
@@ -49,6 +59,90 @@ export default function Home() {
   );
 
   const criteriaJson = JSON.stringify(criteria);
+
+  type PresetApiItem = { id: string; name: string; criteria: HrCriteria };
+
+  const loadPresets = useCallback(async () => {
+    setPresetLoading(true);
+    setPresetError(null);
+    try {
+      const res = await fetch("/api/criteria-presets");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPresetError(
+          typeof json.error === "string"
+            ? json.error
+            : "Could not load presets.",
+        );
+        return;
+      }
+      const items: unknown[] = Array.isArray(json.items) ? (json.items as unknown[]) : [];
+      setPresetItems(
+        items
+          .filter((x): x is PresetApiItem => {
+            if (typeof x !== "object" || x === null) return false;
+            const o = x as Record<string, unknown>;
+            return (
+              typeof o.id === "string" &&
+              typeof o.name === "string" &&
+              typeof o.criteria === "object" &&
+              o.criteria !== null
+            );
+          })
+          .map((x) => ({ id: x.id, name: x.name, criteria: x.criteria })),
+      );
+    } catch {
+      setPresetError("Network error while loading presets.");
+    } finally {
+      setPresetLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPresets();
+  }, [loadPresets]);
+
+  const presetOptions = useMemo(() => {
+    return presetItems.map((p) => ({ id: p.id, name: p.name }));
+  }, [presetItems]);
+
+  const onApplyPreset = (id: string) => {
+    setPresetSelectedId(id);
+    const p = presetItems.find((x) => x.id === id);
+    if (p) setCriteria(p.criteria);
+  };
+
+  const savePreset = async () => {
+    const name = presetName.trim();
+    if (!name) {
+      setPresetError("Enter a preset name first.");
+      return;
+    }
+    setPresetSaveBusy(true);
+    setPresetError(null);
+    try {
+      const res = await fetch("/api/criteria-presets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, criteria }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPresetError(
+          typeof json.error === "string"
+            ? json.error
+            : "Could not save preset.",
+        );
+        return;
+      }
+      setPresetName("");
+      await loadPresets();
+    } catch {
+      setPresetError("Network error while saving preset.");
+    } finally {
+      setPresetSaveBusy(false);
+    }
+  };
 
   const analyze = async () => {
     if (!file) return;
@@ -149,6 +243,7 @@ export default function Home() {
   const busy = loading;
   const canRunSingle = mode === "single" && file && !busy;
   const canRunBatch = mode === "batch" && batchFiles.length > 0 && !busy;
+  const canDownloadSinglePdf = mode === "single" && !!result && !busy && !singlePdfBusy;
 
   return (
     <div className="min-h-screen bg-navy-950 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950">
@@ -202,6 +297,65 @@ export default function Home() {
                 >
                   Paste job description
                 </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Load preset
+                </label>
+                <div className="mt-1.5 flex gap-2">
+                  <select
+                    value={presetSelectedId}
+                    onChange={(e) => onApplyPreset(e.target.value)}
+                    disabled={presetLoading || busy}
+                    className="h-11 w-full rounded-lg border border-white/10 bg-navy-950/40 px-3 text-sm text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">
+                      {presetLoading ? "Loading…" : "Select a preset"}
+                    </option>
+                    {presetOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void loadPresets()}
+                    disabled={presetLoading || busy}
+                    className="inline-flex h-11 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                {presetError ? (
+                  <p className="mt-2 text-xs text-rose-200">{presetError}</p>
+                ) : null}
+              </div>
+
+              <div className="flex-1">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Save as preset
+                </label>
+                <div className="mt-1.5 flex gap-2">
+                  <input
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    disabled={presetSaveBusy || busy}
+                    placeholder="e.g. Senior React Engineer"
+                    className="h-11 w-full rounded-lg border border-white/10 bg-navy-950/40 px-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void savePreset()}
+                    disabled={presetSaveBusy || busy}
+                    className="inline-flex h-11 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-navy-950 shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {presetSaveBusy ? "Saving…" : "Save"}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -295,7 +449,27 @@ export default function Home() {
           {busy && <LoadingSkeleton />}
 
           {result && !busy && mode === "single" && (
-            <ResumeResult data={result} />
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!result) return;
+                    setSinglePdfBusy(true);
+                    try {
+                      await downloadSingleResumePdf(criteria, result);
+                    } finally {
+                      setSinglePdfBusy(false);
+                    }
+                  }}
+                  disabled={!canDownloadSinglePdf}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {singlePdfBusy ? "Building PDF…" : "Download PDF"}
+                </button>
+              </div>
+              <ResumeResult data={result} criteria={criteria} />
+            </div>
           )}
 
           {rankResult && !busy && mode === "batch" && (
