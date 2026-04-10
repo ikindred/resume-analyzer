@@ -24,16 +24,16 @@ function ListField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
         {label}
       </label>
-      <p className="mt-0.5 text-xs text-slate-500">{hint}</p>
+      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">{hint}</p>
       <textarea
         value={text}
         onChange={(e) => onTextChange(e.target.value)}
         disabled={disabled}
         rows={3}
-        className="mt-1.5 w-full rounded-lg border border-white/10 bg-navy-900/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-50"
+        className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-50 dark:border-white/10 dark:bg-navy-900/60 dark:text-slate-200 dark:placeholder:text-slate-600"
         placeholder="One per line (or comma-separated)"
       />
     </div>
@@ -55,7 +55,7 @@ function NumField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
         {label}
       </label>
       <input
@@ -67,7 +67,7 @@ function NumField({
           onChange(v === "" ? null : Number(v));
         }}
         disabled={disabled}
-        className="mt-1.5 w-full rounded-lg border border-white/10 bg-navy-900/60 px-3 py-2 text-sm text-slate-200 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-50"
+        className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-50 dark:border-white/10 dark:bg-navy-900/60 dark:text-slate-200"
       />
     </div>
   );
@@ -79,11 +79,11 @@ export function HrCriteriaForm({ value, onChange, disabled }: Props) {
   };
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+    <section className="rounded-xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:shadow-none">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-accent">
         HR screening criteria
       </h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-slate-600 dark:text-slate-500">
         Used by the AI for criteria ratings, interview decision, and ranking.
         Clears when you refresh the page.
       </p>
@@ -184,7 +184,7 @@ export function HrCriteriaForm({ value, onChange, disabled }: Props) {
       </div>
 
       <div className="mt-5">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
           Other notes for the AI
         </label>
         <textarea
@@ -192,7 +192,7 @@ export function HrCriteriaForm({ value, onChange, disabled }: Props) {
           onChange={(e) => onChange({ ...value, notes: e.target.value })}
           disabled={disabled}
           rows={3}
-          className="mt-1.5 w-full rounded-lg border border-white/10 bg-navy-900/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-50"
+          className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-50 dark:border-white/10 dark:bg-navy-900/60 dark:text-slate-200 dark:placeholder:text-slate-600"
           placeholder="Dealbreakers, seniority, location, salary band context…"
         />
       </div>

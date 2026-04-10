@@ -86,8 +86,13 @@ export async function POST(request: Request) {
       }
     }
 
-    const analysis = await analyzeResume(extracted.text, criteria);
-    return NextResponse.json(analysis);
+    const analysis = await analyzeResume(extracted.text, criteria, {
+      fileName: entry.name,
+    });
+    return NextResponse.json({
+      analysis,
+      extractedText: extracted.text,
+    });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "An unexpected error occurred";
@@ -108,7 +113,9 @@ export async function POST(request: Request) {
       message.includes("Invalid recommendation") ||
       message.includes("fitScore") ||
       message.includes("Model returned invalid JSON") ||
-      message.includes("Empty response from model")
+      message.includes("Empty response from model") ||
+      message.includes("(extraction)") ||
+      message.includes("(screening)")
     ) {
       return NextResponse.json(
         { error: "Could not parse AI response. Please try again." },

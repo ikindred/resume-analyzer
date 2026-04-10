@@ -19,11 +19,11 @@ function FitScoreBar({ fitScore }: { fitScore: number }) {
   const pct = (clamped / 10) * 100;
   return (
     <div className="mt-2">
-      <div className="flex items-center justify-between text-xs text-slate-400">
+      <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
         <span>Fit score</span>
         <span className="tabular-nums">{clamped}/10</span>
       </div>
-      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white/10">
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
         <div
           className="h-2 rounded-full bg-accent"
           style={{ width: `${pct}%` }}
@@ -41,7 +41,7 @@ function RatingDots({ rating }: { rating: number }) {
         <span
           key={i}
           className={`h-2 w-2 rounded-full ${
-            i < r ? "bg-accent" : "bg-white/10"
+            i < r ? "bg-accent" : "bg-slate-300 dark:bg-white/10"
           }`}
         />
       ))}
@@ -66,20 +66,20 @@ export function CandidateComparison({ candidates, onClose }: Props) {
   const criteria = Array.from(criterionSet);
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.04]">
-      <div className="flex flex-col gap-3 border-b border-white/10 bg-navy-900/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none">
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-white/10 dark:bg-navy-900/40 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
             Candidate comparison
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
             Side-by-side view of key signals and criteria ratings.
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
         >
           Close
         </button>
@@ -91,20 +91,20 @@ export function CandidateComparison({ candidates, onClose }: Props) {
           return (
             <div
               key={`${c.rank}-${c.fileName}`}
-              className="rounded-xl border border-white/10 bg-navy-950/40 p-4"
+              className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-navy-950/40"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xl font-bold tabular-nums text-accent">
                   #{c.rank}
                 </span>
-                <span className="text-base font-semibold text-white">
+                <span className="text-base font-semibold text-slate-900 dark:text-white">
                   {a.candidateName || "Unknown candidate"}
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-500">{c.fileName}</p>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-slate-300">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Score {c.rankScore.toFixed(1)}/100
                 </span>
                 <span
@@ -119,10 +119,10 @@ export function CandidateComparison({ candidates, onClose }: Props) {
               <FitScoreBar fitScore={a.assessment.fitScore} />
 
               <div className="mt-4">
-                <h3 className="text-xs font-semibold uppercase text-slate-500">
+                <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                   Good signals
                 </h3>
-                <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm text-slate-300">
+                <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm text-slate-700 dark:text-slate-300">
                   {(a.goodThings?.length ? a.goodThings : ["—"]).map((g, i) => (
                     <li key={i}>{g}</li>
                   ))}
@@ -130,10 +130,10 @@ export function CandidateComparison({ candidates, onClose }: Props) {
               </div>
 
               <div className="mt-4">
-                <h3 className="text-xs font-semibold uppercase text-slate-500">
+                <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                   Risks / gaps
                 </h3>
-                <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm text-slate-300">
+                <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm text-slate-700 dark:text-slate-300">
                   {(a.badThings?.length ? a.badThings : ["—"]).map((b, i) => (
                     <li key={i}>{b}</li>
                   ))}
@@ -141,13 +141,13 @@ export function CandidateComparison({ candidates, onClose }: Props) {
               </div>
 
               <div className="mt-4">
-                <h3 className="text-xs font-semibold uppercase text-slate-500">
+                <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                   Criteria ratings
                 </h3>
                 {criteria.length === 0 ? (
                   <p className="mt-1.5 text-sm text-slate-500">—</p>
                 ) : (
-                  <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                  <ul className="mt-2 space-y-2 text-sm text-slate-700 dark:text-slate-300">
                     {criteria.map((criterion) => {
                       const cr = (a.criteriaRatings ?? []).find(
                         (x) => x.criterion?.trim() === criterion,
@@ -156,10 +156,10 @@ export function CandidateComparison({ candidates, onClose }: Props) {
                       return (
                         <li
                           key={criterion}
-                          className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2"
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]"
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-medium text-slate-200">
+                            <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
                               {criterion}
                             </span>
                             {rating ? (

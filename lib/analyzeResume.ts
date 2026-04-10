@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { resolveCandidateName } from "@/lib/candidateNameResolution";
 import type { HrCriteria } from "@/lib/hrCriteria";
 import { EMPTY_HR_CRITERIA } from "@/lib/hrCriteria";
 
@@ -15,6 +16,43 @@ export interface CriteriaRating {
   evidence: string;
 }
 
+/** Labeled skill blocks (e.g. FUNCTIONAL SKILLS vs TECHNICAL SKILLS) preserved verbatim from the resume. */
+export interface SkillsSection {
+  title: string;
+  items: string[];
+}
+
+/** One date/month heading on the resume with exam or module lines beneath it (e.g. SAP certs). */
+export interface CertificateDatedGroup {
+  period: string;
+  items: string[];
+}
+
+/** Vendor/professional certifications; not academic degrees or school programs. */
+export interface CertificateEntry {
+  name: string;
+  datedItems?: CertificateDatedGroup[];
+}
+
+export interface ExperienceEntry {
+  title: string;
+  company: string;
+  duration: string;
+  /** Office or site line when printed under the role */
+  location?: string;
+  /** Bullets under “Job Responsibilities” or general role duties when not split further */
+  jobResponsibilities: string[];
+  /** Verbatim block under headings like Specialist / Digital Services Lead */
+  specialistLead?: string;
+  /** Bullets under “Projects include” (or similar) */
+  projectsInclude?: string[];
+  /**
+   * Legacy analyses only — server output uses jobResponsibilities.
+   * Kept so older saved JSON still renders.
+   */
+  highlights?: string[];
+}
+
 export interface ResumeAnalysis {
   candidateName: string;
   contactInfo: {
@@ -22,21 +60,19 @@ export interface ResumeAnalysis {
     phone: string;
     location: string;
   };
+  /** Short professional narrative from the resume (Profile / Summary / Objective prose only—not skill lists). */
   summary: string;
   skills: string[];
-  experience: Array<{
-    title: string;
-    company: string;
-    duration: string;
-    highlights: string[];
-  }>;
+  /** When the resume splits skills into sections, preserve each block; optional. */
+  skillsSections?: SkillsSection[];
+  experience: ExperienceEntry[];
   education: Array<{
     degree: string;
     school: string;
     year: string;
   }>;
-  /** Professional certifications from the resume (use [] if none). */
-  certificates: string[];
+  /** Vendor/professional certifications (SAP, AWS, etc.), not degrees. */
+  certificates: CertificateEntry[];
   /** Formal trainings listed on the resume (use [] if none). */
   trainings: string[];
   /** Per-criterion ratings vs HR criteria (and inferred checks like gaps/tenure when HR asked). */
@@ -63,8 +99,16 @@ const RECOMMENDATIONS: Recommendation[] = [
 /** Cap extracted resume text before sending to the model (token safety). */
 const MAX_RESUME_CHARS = 50_000;
 
-function buildSystemPrompt(): string {
-  return `You are an expert HR recruiter. Analyze the resume text using the HR screening criteria provided in the user message (JSON). Respond with ONLY a valid JSON object (no markdown, no prose outside JSON).
+const DEFAULT_MODEL = "gpt-4o-mini";
+
+function resolveModel(): string {
+  return process.env.OPENAI_ANALYZE_MODEL?.trim() || DEFAULT_MODEL;
+}
+
+function buildExtractionSystemPrompt(): string {
+  return `You are a precise document transcriber for resumes. Your ONLY job is to copy structured data OUT of the resume text into JSON. You are NOT a writer—do not paraphrase, summarize, translate, "improve", normalize names, fix spelling, or infer facts that are not written in the resume.
+
+Respond with ONLY a valid JSON object (no markdown, no prose outside JSON).
 
 The JSON must match this exact shape and key names:
 {
@@ -74,14 +118,23 @@ The JSON must match this exact shape and key names:
     "phone": "string",
     "location": "string"
   },
-  "summary": "string (2-3 sentences)",
+  "summary": "string",
   "skills": ["string"],
+  "skillsSections": [
+    {
+      "title": "string (section heading as printed, e.g. FUNCTIONAL SKILLS)",
+      "items": ["string"]
+    }
+  ],
   "experience": [
     {
-      "title": "string",
+      "title": "string (job title / role line)",
       "company": "string",
-      "duration": "string",
-      "highlights": ["string"]
+      "duration": "string (date range exactly as printed)",
+      "location": "string (city/region line if printed; else \"\")",
+      "jobResponsibilities": ["string"],
+      "specialistLead": "string (verbatim under Specialist / Digital Services Lead or similar; else \"\")",
+      "projectsInclude": ["string"]
     }
   ],
   "education": [
@@ -91,13 +144,55 @@ The JSON must match this exact shape and key names:
       "year": "string"
     }
   ],
-  "certificates": ["string"],
-  "trainings": ["string"],
+  "certificates": [
+    {
+      "name": "string (main certification title as printed)",
+      "datedItems": [
+        {
+          "period": "string (month/year heading as printed, e.g. August 2024)",
+          "items": ["string (exam/module lines under that period)"]
+        }
+      ]
+    }
+  ],
+  "trainings": ["string"]
+}
+
+Transcription rules (critical):
+- Ignore email subjects and watermarks. Use ONLY the resume text provided in the user message.
+- candidateName: Copy the person's full name EXACTLY as it appears in the resume's primary heading (usually the largest name at the top). Include every printed given name, middle name, maternal/paternal surname, and particle—never shorten to only first and last when the resume shows more (e.g. if the heading is "SHERMAINE NARIO TOREJA", output all three name parts, not "Shermaine Toreja"). Preserve character order, capitalization, spacing, and punctuation exactly as printed (e.g. if the resume shows "TOREJAS HERMAINE", output that exact string). Do NOT reorder name parts, do NOT switch to Western given-name-first order.
+- candidateName must be a person's name (often 2–6 words when middle names or multiple surnames appear). NEVER put a job title, certification headline, or role descriptor here (e.g. lines like "SAP Certified Associate", "Implementation Consultant", "Business Analyst" belong in experience or certificates, not candidateName).
+- If the name is not present in the extracted text (common when the header is a graphic/image in the PDF so only body text was extracted), use "" for candidateName and do NOT fill it with the first headline line if that line is clearly a role or certification.
+- contactInfo: Copy emails, phone numbers, and address/location lines verbatim into the three fields. Use "" if a field is missing.
+- summary: Copy ONLY opening narrative prose: Professional Summary, Profile, About, or Objective sections when they are written as sentences/paragraphs about the candidate (goals, background, years of experience). Join multiple paragraphs with a single newline. Use "" if there is no such prose block.
+- summary must NOT contain: bulleted or checkmarked lists of tools, technologies, or competencies; lines that belong under headings such as SKILLS, TECHNICAL SKILLS, FUNCTIONAL SKILLS, CORE COMPETENCIES, EXPERTISE, KEY SKILLS, or similar—even if another part of the resume mislabels a skill list. Those lines belong ONLY in skills/skillsSections.
+- skills: Include EVERY line from ALL skills-related areas in one flat list in document order (tools, technologies, competency bullets, checkmarks, dashes). Do not merge, summarize, or drop lines.
+- skillsSections: When the resume has one or more labeled skill blocks, create one object per printed heading with that heading copied EXACTLY as it appears (e.g. SKILLS, Soft Skills, TECHNICAL SKILLS, FUNCTIONAL SKILLS). Put every bullet/line under that heading in items. Do not invent headings, do not rename TECHNICAL SKILLS to something else, and do not put skill bullets under summary. Use [] only when the resume has a single undivided list with no subsection titles; then use the flat skills array only. If skillsSections is non-empty, skills must list the same lines in order (concatenation of all sections).
+- experience: One object per employment, internship, or work-history block (as labeled on the resume). Copy title, company, and duration EXACTLY as written. Put title + duration on one conceptual line in the data (title and duration are separate fields; the UI prints them together). Put company on the next line (company field). Copy location into location when a place line appears for that role.
+- experience / jobResponsibilities: Copy EVERY bullet or sentence under "Job Responsibilities", role duties, or generic responsibility bullets for that employer. If the resume uses that exact heading, only those bullets go here. If there is no separate heading, put all responsibility bullets here. Use [] when there are none.
+- experience / specialistLead: Copy the full text under headings like "Specialist / Digital Services Lead" (or the same wording as on the resume). Use "" when that subsection is absent or empty.
+- experience / projectsInclude: Copy bullets/lines under "Projects include" (or the same wording as on the resume). Use [] when absent or empty. Do not duplicate the same bullets in jobResponsibilities unless they literally appear twice on the resume.
+- education: Academic degrees and diploma programs from schools/universities only, plus government-issued professional registrations/licenses shown as eligibility (e.g. Registered Civil Engineer with issuing body and date). Copy degree name, school, and year/graduation text verbatim.
+- education (exclusions): NEVER put vendor or product certifications here (e.g. SAP Certified, AWS Certified, Microsoft Certified, PMP, Scrum Master certificates, "SAP CERTIFIED ASSOCIATE", course completion badges) even if the resume groups them visually under "Education and Eligibility" or similar — those belong ONLY in certificates.
+- certificates: Vendor/professional/product certifications and credential programs (SAP, cloud certs, etc.). For each distinct certification family, use one object with name = the main title line. If the resume lists exams or modules under month/year subheadings, use datedItems: one object per printed period with items = the lines under that period (preserve wording). If a cert is a single line with no sub-structure, use { "name": "..." } and omit datedItems or use []. Use [] when there are no such certifications.
+- trainings: Copy each training program line verbatim when the resume has a Trainings section; otherwise [].
+- Use "" or [] when information is missing; do not omit required keys.`;
+}
+
+function buildScreeningSystemPrompt(): string {
+  return `You are an expert HR recruiter. You receive (1) HR screening criteria as JSON, (2) VERBATIM_RESUME_FACTS JSON that was transcribed from the resume (treat identity and quoted facts as ground truth), and (3) the full resume text for additional context.
+
+Your job is ONLY to produce screening output: criteria ratings, strengths/concerns, fit score, recommendation, and short bullets. Do NOT re-transcribe the resume. When you refer to the candidate, use the exact candidateName from VERBATIM_RESUME_FACTS.
+
+Respond with ONLY a valid JSON object (no markdown, no prose outside JSON).
+
+The JSON must match this exact shape and key names:
+{
   "criteriaRatings": [
     {
       "criterion": "string (e.g. Must-have: React)",
       "rating": 1,
-      "evidence": "string (short quote or paraphrase from resume)"
+      "evidence": "string (short quote or paraphrase tied to resume text)"
     }
   ],
   "goodThings": ["string"],
@@ -112,11 +207,9 @@ The JSON must match this exact shape and key names:
 }
 
 Rules:
-- Use empty string "" or empty arrays when information is missing; do not omit required keys.
 - criteriaRatings: For EACH active HR criterion (non-empty lists and numeric thresholds the HR set), include one object with a clear "criterion" label and rating 1-5. If HR provided no specific criteria, include 5-8 criteriaRatings for general dimensions (skills fit, experience depth, impact/achievements, communication/leadership signals, education, stability/gaps, company count vs expectation).
 - rating must be an integer 1-5 only.
 - goodThings / badThings: concise bullets tied to HR criteria where possible.
-- certificates: license/credential lines; trainings: dated training rows when listed.
 - fitScore must be an integer from 1 to 10.
 - recommendation must be exactly one of: "Strong Candidate", "Consider for Interview", "Not a Match". Align recommendation with HR must-haves and dealbreakers when stated.
 - If age is required by HR but not present on resume, add a criteriaRating noting "Age not stated" with low confidence and explain in evidence.
@@ -144,9 +237,121 @@ function isRating(v: unknown): v is CriteriaRatingValue {
   );
 }
 
-function validateResumeAnalysis(data: unknown): ResumeAnalysis {
+export type ResumeBodyFacts = Pick<
+  ResumeAnalysis,
+  | "candidateName"
+  | "contactInfo"
+  | "summary"
+  | "skills"
+  | "skillsSections"
+  | "experience"
+  | "education"
+  | "certificates"
+  | "trainings"
+>;
+
+export type ResumeScreening = Pick<
+  ResumeAnalysis,
+  | "criteriaRatings"
+  | "goodThings"
+  | "badThings"
+  | "assessment"
+  | "recommendation"
+>;
+
+function parseCertificateArray(arr: unknown): CertificateEntry[] {
+  if (!Array.isArray(arr)) {
+    throw new Error("Missing or invalid certificates");
+  }
+  const out: CertificateEntry[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const raw = arr[i];
+    if (typeof raw === "string") {
+      const name = raw.trim();
+      if (name) out.push({ name });
+      continue;
+    }
+    if (typeof raw !== "object" || raw === null) {
+      throw new Error(`Invalid certificates[${i}]`);
+    }
+    const o = raw as Record<string, unknown>;
+    if (!isString(o.name)) {
+      throw new Error(`Invalid certificates[${i}].name`);
+    }
+    const name = o.name.trim();
+    if (!name) continue;
+
+    let datedItems: CertificateDatedGroup[] | undefined;
+    const datedRaw = o.datedItems;
+    if (datedRaw !== undefined && datedRaw !== null) {
+      if (!Array.isArray(datedRaw)) {
+        throw new Error(`Invalid certificates[${i}].datedItems`);
+      }
+      const groups: CertificateDatedGroup[] = [];
+      for (let j = 0; j < datedRaw.length; j++) {
+        const g = datedRaw[j];
+        if (typeof g !== "object" || g === null) {
+          throw new Error(`Invalid certificates[${i}].datedItems[${j}]`);
+        }
+        const gr = g as Record<string, unknown>;
+        if (!isString(gr.period) || !isStringArray(gr.items)) {
+          throw new Error(
+            `Invalid certificates[${i}].datedItems[${j}] fields`,
+          );
+        }
+        const items = gr.items.map((s) => s.trim()).filter(Boolean);
+        const period = gr.period.trim();
+        if (period || items.length > 0) {
+          groups.push({ period, items });
+        }
+      }
+      if (groups.length > 0) datedItems = groups;
+    }
+
+    out.push(datedItems?.length ? { name, datedItems } : { name });
+  }
+  return out;
+}
+
+/**
+ * Best-effort parse for client-side PDF/UI when analysis JSON is older or partially shaped.
+ */
+export function safeCertificateArray(arr: unknown): CertificateEntry[] {
+  try {
+    return parseCertificateArray(arr);
+  } catch {
+    return [];
+  }
+}
+
+/** Responsibility bullets: current field or legacy highlights from saved analyses. */
+export function effectiveJobResponsibilities(job: ExperienceEntry): string[] {
+  const from = job.jobResponsibilities?.filter((s) => s.trim()) ?? [];
+  if (from.length > 0) return from;
+  return job.highlights?.filter((s) => s.trim()) ?? [];
+}
+
+function validateSkillsSections(v: unknown): SkillsSection[] | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v)) {
+    throw new Error("Missing or invalid skillsSections");
+  }
+  if (v.length === 0) return undefined;
+  return v.map((item, i) => {
+    if (typeof item !== "object" || item === null) {
+      throw new Error(`Invalid skillsSections[${i}]`);
+    }
+    const e = item as Record<string, unknown>;
+    if (!isString(e.title) || !isStringArray(e.items)) {
+      throw new Error(`Invalid skillsSections[${i}] fields`);
+    }
+    return { title: e.title, items: e.items };
+  });
+}
+
+function validateResumeBody(data: unknown): ResumeBodyFacts {
   if (typeof data !== "object" || data === null) {
-    throw new Error("Analysis must be a JSON object");
+    throw new Error("Resume body must be a JSON object");
   }
   const o = data as Record<string, unknown>;
 
@@ -171,6 +376,12 @@ function validateResumeAnalysis(data: unknown): ResumeAnalysis {
     throw new Error("Missing or invalid skills");
   }
 
+  const skillsSections = validateSkillsSections(o.skillsSections);
+  let skills = [...o.skills];
+  if (skillsSections && skillsSections.length > 0) {
+    skills = skillsSections.flatMap((s) => s.items);
+  }
+
   if (!Array.isArray(o.experience)) {
     throw new Error("Missing or invalid experience");
   }
@@ -179,19 +390,34 @@ function validateResumeAnalysis(data: unknown): ResumeAnalysis {
       throw new Error(`Invalid experience[${i}]`);
     }
     const e = item as Record<string, unknown>;
-    if (
-      !isString(e.title) ||
-      !isString(e.company) ||
-      !isString(e.duration) ||
-      !isStringArray(e.highlights)
-    ) {
+    if (!isString(e.title) || !isString(e.company) || !isString(e.duration)) {
       throw new Error(`Invalid experience[${i}] fields`);
     }
+    let jobResponsibilities: string[] = [];
+    if (isStringArray(e.jobResponsibilities)) {
+      jobResponsibilities = e.jobResponsibilities
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (isStringArray(e.highlights)) {
+      jobResponsibilities = e.highlights.map((s) => s.trim()).filter(Boolean);
+    }
+    const projectsInclude = isStringArray(e.projectsInclude)
+      ? e.projectsInclude.map((s) => s.trim()).filter(Boolean)
+      : [];
+    const location =
+      isString(e.location) && e.location.trim() ? e.location.trim() : undefined;
+    const specialistLead =
+      isString(e.specialistLead) && e.specialistLead.trim()
+        ? e.specialistLead.trim()
+        : undefined;
     return {
       title: e.title,
       company: e.company,
       duration: e.duration,
-      highlights: e.highlights,
+      location,
+      jobResponsibilities,
+      specialistLead,
+      projectsInclude,
     };
   });
 
@@ -209,12 +435,33 @@ function validateResumeAnalysis(data: unknown): ResumeAnalysis {
     return { degree: e.degree, school: e.school, year: e.year };
   });
 
-  if (!isStringArray(o.certificates)) {
-    throw new Error("Missing or invalid certificates");
-  }
+  const certificates = parseCertificateArray(o.certificates ?? []);
   if (!isStringArray(o.trainings)) {
     throw new Error("Missing or invalid trainings");
   }
+
+  return {
+    candidateName: o.candidateName,
+    contactInfo: {
+      email: c.email,
+      phone: c.phone,
+      location: c.location,
+    },
+    summary: o.summary,
+    skills,
+    skillsSections,
+    experience,
+    education,
+    certificates,
+    trainings: o.trainings,
+  };
+}
+
+function validateScreening(data: unknown): ResumeScreening {
+  if (typeof data !== "object" || data === null) {
+    throw new Error("Screening must be a JSON object");
+  }
+  const o = data as Record<string, unknown>;
 
   if (!Array.isArray(o.criteriaRatings)) {
     throw new Error("Missing or invalid criteriaRatings");
@@ -266,18 +513,6 @@ function validateResumeAnalysis(data: unknown): ResumeAnalysis {
   }
 
   return {
-    candidateName: o.candidateName,
-    contactInfo: {
-      email: c.email,
-      phone: c.phone,
-      location: c.location,
-    },
-    summary: o.summary,
-    skills: o.skills,
-    experience,
-    education,
-    certificates: o.certificates,
-    trainings: o.trainings,
     criteriaRatings,
     goodThings: o.goodThings,
     badThings: o.badThings,
@@ -291,9 +526,22 @@ function validateResumeAnalysis(data: unknown): ResumeAnalysis {
   };
 }
 
+function mergeAnalysis(body: ResumeBodyFacts, screening: ResumeScreening): ResumeAnalysis {
+  return {
+    ...body,
+    ...screening,
+  };
+}
+
+export type AnalyzeResumeOptions = {
+  /** Original upload file name; used to recover the real name when the PDF header is image-only. */
+  fileName?: string;
+};
+
 export async function analyzeResume(
   resumeText: string,
   criteria: HrCriteria = EMPTY_HR_CRITERIA,
+  options?: AnalyzeResumeOptions,
 ): Promise<ResumeAnalysis> {
   const key = process.env.OPENAI_API_KEY;
   if (!key?.trim()) {
@@ -301,6 +549,7 @@ export async function analyzeResume(
   }
 
   const openai = new OpenAI({ apiKey: key });
+  const model = resolveModel();
   const text =
     resumeText.length > MAX_RESUME_CHARS
       ? resumeText.slice(0, MAX_RESUME_CHARS)
@@ -308,30 +557,74 @@ export async function analyzeResume(
 
   const criteriaJson = JSON.stringify(criteria);
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    max_tokens: 3500,
+  const fileHint = options?.fileName
+    ? `\n\nContext: the file was uploaded as "${options.fileName}". If no person name appears in the text below (e.g. header was image-only), use "" for candidateName rather than guessing from a job title or certification line.\n`
+    : "";
+
+  const extraction = await openai.chat.completions.create({
+    model,
+    max_tokens: 8000,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: buildSystemPrompt() },
+      { role: "system", content: buildExtractionSystemPrompt() },
       {
         role: "user",
-        content: `HR screening criteria (JSON). Use these fields to score criteriaRatings and decide recommendation:\n${criteriaJson}\n\nResume text:\n\n${text}`,
+        content: `Transcribe the resume below into the JSON schema. Remember: copy wording exactly.${fileHint}\n---\n\n${text}\n\n---`,
       },
     ],
   });
 
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("Empty response from model");
+  const extractionContent = extraction.choices[0]?.message?.content;
+  if (!extractionContent) {
+    throw new Error("Empty response from model (extraction)");
   }
 
-  let parsed: unknown;
+  let extractionParsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    extractionParsed = JSON.parse(extractionContent);
   } catch {
-    throw new Error("Model returned invalid JSON");
+    throw new Error("Model returned invalid JSON (extraction)");
   }
 
-  return validateResumeAnalysis(parsed);
+  const body = validateResumeBody(extractionParsed);
+
+  const resolvedName = resolveCandidateName(
+    body.candidateName,
+    options?.fileName,
+    text,
+  );
+  const bodyWithResolvedName: ResumeBodyFacts = {
+    ...body,
+    candidateName: resolvedName,
+  };
+
+  const verbatimFactsJson = JSON.stringify(bodyWithResolvedName);
+
+  const screening = await openai.chat.completions.create({
+    model,
+    max_tokens: 3500,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: buildScreeningSystemPrompt() },
+      {
+        role: "user",
+        content: `HR screening criteria (JSON):\n${criteriaJson}\n\nVERBATIM_RESUME_FACTS (ground truth for name, contact, and structured resume content):\n${verbatimFactsJson}\n\nFull resume text (same as transcription source):\n\n${text}`,
+      },
+    ],
+  });
+
+  const screeningContent = screening.choices[0]?.message?.content;
+  if (!screeningContent) {
+    throw new Error("Empty response from model (screening)");
+  }
+
+  let screeningParsed: unknown;
+  try {
+    screeningParsed = JSON.parse(screeningContent);
+  } catch {
+    throw new Error("Model returned invalid JSON (screening)");
+  }
+
+  const screeningResult = validateScreening(screeningParsed);
+  return mergeAnalysis(bodyWithResolvedName, screeningResult);
 }

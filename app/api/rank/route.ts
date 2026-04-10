@@ -90,7 +90,9 @@ export async function POST(request: Request) {
       }
 
       try {
-        const analysis = await analyzeResume(extracted.text, criteria);
+        const analysis = await analyzeResume(extracted.text, criteria, {
+          fileName: file.name,
+        });
         const rankScore = computeRankScore(analysis);
         results.push({ fileName: file.name, analysis, rankScore });
       } catch (e) {

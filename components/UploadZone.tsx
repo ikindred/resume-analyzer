@@ -81,7 +81,7 @@ export function UploadZone({
         }}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className="group relative w-full rounded-xl border-2 border-dashed border-navy-500/50 bg-white/5 px-6 py-12 text-center transition-colors hover:border-accent/60 hover:bg-white/[0.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 disabled:cursor-not-allowed disabled:opacity-60 min-h-[180px] flex flex-col items-center justify-center"
+        className="group relative flex min-h-[180px] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-6 py-12 text-center transition-colors hover:border-accent/60 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-navy-500/50 dark:bg-white/5 dark:hover:bg-white/[0.07] dark:focus-visible:ring-offset-navy-950"
       >
         <input
           ref={inputRef}
@@ -109,24 +109,24 @@ export function UploadZone({
               />
             </svg>
           </span>
-          <p className="text-sm font-medium text-slate-200">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
             Drag and drop a resume here, or{" "}
             <span className="text-accent underline decoration-accent/50 underline-offset-2 group-hover:decoration-accent">
               browse
             </span>
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-600 dark:text-slate-500">
             PDF or Word (.docx) · max 5MB
           </p>
         </div>
       </button>
 
       {selectedFile && (
-        <p className="mt-3 text-sm text-slate-400">
-          <span className="font-medium text-slate-200">
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+          <span className="font-medium text-slate-900 dark:text-slate-200">
             {selectedFile.name}
           </span>
-          <span className="mx-2 text-slate-600">·</span>
+          <span className="mx-2 text-slate-400 dark:text-slate-600">·</span>
           {formatBytes(selectedFile.size)}
         </p>
       )}

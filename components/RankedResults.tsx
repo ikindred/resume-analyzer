@@ -155,16 +155,18 @@ export function RankedResults({ data }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-semibold text-white">Ranking results</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          Ranking results
+        </h2>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex min-h-[44px] items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3">
-            <span className="text-xs font-semibold text-slate-300">
+          <div className="flex min-h-[44px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 shadow-sm dark:border-white/15 dark:bg-white/10">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Link JD
             </span>
             <select
               value={jdId}
               onChange={(e) => setJdId(e.target.value)}
-              className="h-9 max-w-[240px] rounded-md border border-white/10 bg-navy-950/40 px-2 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="h-9 max-w-[240px] rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-white/10 dark:bg-navy-950/40 dark:text-slate-200"
             >
               <option value="">None</option>
               {jdOptions.map((o) => (
@@ -186,7 +188,7 @@ export function RankedResults({ data }: Props) {
             type="button"
             onClick={onCsv}
             disabled={csvBusy || data.candidates.length === 0}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
           >
             {csvBusy ? "Building CSV…" : "Download CSV"}
           </button>
@@ -194,7 +196,7 @@ export function RankedResults({ data }: Props) {
             type="button"
             onClick={onPdf}
             disabled={pdfBusy || data.candidates.length === 0}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
           >
             {pdfBusy ? "Building PDF…" : "Download PDF report"}
           </button>
@@ -203,7 +205,7 @@ export function RankedResults({ data }: Props) {
 
       {saveHint ? (
         <div
-          className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"
           role="status"
         >
           {saveHint}{" "}
@@ -222,11 +224,11 @@ export function RankedResults({ data }: Props) {
 
       {data.failed.length > 0 ? (
         <div
-          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
           role="status"
         >
           <p className="font-medium">Some files could not be processed</p>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-amber-100/90">
+          <ul className="mt-2 list-inside list-disc space-y-1 text-amber-800/90 dark:text-amber-100/90">
             {data.failed.map((f) => (
               <li key={f.fileName}>
                 {f.fileName}
@@ -246,20 +248,20 @@ export function RankedResults({ data }: Props) {
           return (
             <li
               key={`${c.rank}-${c.fileName}`}
-              className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
+              className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none"
             >
-              <div className="flex flex-col gap-3 border-b border-white/10 bg-navy-900/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-white/10 dark:bg-navy-900/40 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <span className="text-2xl font-bold tabular-nums text-accent">
                     #{c.rank}
                   </span>
-                  <span className="text-lg font-semibold text-white">
+                  <span className="text-lg font-semibold text-slate-900 dark:text-white">
                     {a.candidateName || "Unknown candidate"}
                   </span>
                   <span className="text-sm text-slate-500">{c.fileName}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200">
+                  <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -281,11 +283,11 @@ export function RankedResults({ data }: Props) {
                     type="button"
                     onClick={() => saveCandidate(c.fileName)}
                     disabled={saveBusyId === c.fileName}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                   >
                     {saveBusyId === c.fileName ? "Saving…" : "Save"}
                   </button>
-                  <span className="text-sm font-medium text-slate-300">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Score {c.rankScore.toFixed(1)}/100
                   </span>
                   <span
@@ -294,7 +296,7 @@ export function RankedResults({ data }: Props) {
                     {a.recommendation}
                   </span>
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${yes ? "bg-emerald-500/20 text-emerald-200" : "bg-rose-500/20 text-rose-200"}`}
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${yes ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200" : "bg-rose-100 text-rose-900 dark:bg-rose-500/20 dark:text-rose-200"}`}
                   >
                     Interview: {yes ? "Yes" : "No"}
                   </span>
@@ -302,10 +304,10 @@ export function RankedResults({ data }: Props) {
               </div>
               <div className="grid gap-4 px-4 py-4 text-sm md:grid-cols-2">
                 <div>
-                  <h3 className="text-xs font-semibold uppercase text-slate-500">
+                  <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                     Good signals
                   </h3>
-                  <ul className="mt-1.5 list-inside list-disc space-y-1 text-slate-300">
+                  <ul className="mt-1.5 list-inside list-disc space-y-1 text-slate-700 dark:text-slate-300">
                     {(a.goodThings?.length ? a.goodThings : ["—"]).map(
                       (g, i) => (
                         <li key={i}>{g}</li>
@@ -314,10 +316,10 @@ export function RankedResults({ data }: Props) {
                   </ul>
                 </div>
                 <div>
-                  <h3 className="text-xs font-semibold uppercase text-slate-500">
+                  <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                     Risks / gaps
                   </h3>
-                  <ul className="mt-1.5 list-inside list-disc space-y-1 text-slate-300">
+                  <ul className="mt-1.5 list-inside list-disc space-y-1 text-slate-700 dark:text-slate-300">
                     {(a.badThings?.length ? a.badThings : ["—"]).map(
                       (b, i) => (
                         <li key={i}>{b}</li>
@@ -326,8 +328,8 @@ export function RankedResults({ data }: Props) {
                   </ul>
                 </div>
               </div>
-              <div className="border-t border-white/10 px-4 py-3 text-xs text-slate-400">
-                <span className="font-medium text-slate-500">
+              <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
+                <span className="font-medium text-slate-600 dark:text-slate-500">
                   Criteria highlights:{" "}
                 </span>
                 {(a.criteriaRatings ?? [])
@@ -341,7 +343,7 @@ export function RankedResults({ data }: Props) {
       </ol>
 
       {data.candidates.length === 0 ? (
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-slate-600 dark:text-slate-500">
           No successful analyses. Fix uploads above and try again.
         </p>
       ) : null}

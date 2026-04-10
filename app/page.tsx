@@ -11,7 +11,11 @@ import { UploadZone } from "@/components/UploadZone";
 import type { ResumeAnalysis } from "@/lib/analyzeResume";
 import { EMPTY_HR_CRITERIA, type HrCriteria } from "@/lib/hrCriteria";
 import type { RankApiResponse } from "@/lib/rankResult";
-import { downloadSingleResumePdf } from "@/lib/pdfReport";
+import {
+  downloadFormattedResumePdf,
+  downloadSingleResumePdf,
+} from "@/lib/pdfReport";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Mode = "single" | "batch";
 type CriteriaInputMode = "manual" | "jd";
@@ -22,6 +26,7 @@ export default function Home() {
   const [criteriaInputMode, setCriteriaInputMode] =
     useState<CriteriaInputMode>("manual");
   const [singlePdfBusy, setSinglePdfBusy] = useState(false);
+  const [formattedResumeBusy, setFormattedResumeBusy] = useState(false);
   const [presetItems, setPresetItems] = useState<
     Array<{ id: string; name: string; criteria: HrCriteria }>
   >([]);
@@ -173,7 +178,11 @@ export default function Home() {
         return;
       }
 
-      setResult(data as ResumeAnalysis);
+      if (data && typeof data === "object" && "analysis" in data) {
+        setResult((data as { analysis: ResumeAnalysis }).analysis);
+      } else {
+        setResult(data as ResumeAnalysis);
+      }
     } catch {
       setError("Network error. Check your connection and try again.");
     } finally {
@@ -243,19 +252,24 @@ export default function Home() {
   const busy = loading;
   const canRunSingle = mode === "single" && file && !busy;
   const canRunBatch = mode === "batch" && batchFiles.length > 0 && !busy;
-  const canDownloadSinglePdf = mode === "single" && !!result && !busy && !singlePdfBusy;
+  const pdfDownloadBusy = singlePdfBusy || formattedResumeBusy;
+  const canDownloadSinglePdf =
+    mode === "single" && !!result && !busy && !pdfDownloadBusy;
 
   return (
-    <div className="min-h-screen bg-navy-950 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950">
+    <div className="min-h-screen bg-slate-100 bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 dark:bg-navy-950 dark:from-navy-950 dark:via-navy-900 dark:to-navy-950">
       <div className="mx-auto max-w-3xl px-4 py-10 md:py-16">
+        <div className="mb-6 flex justify-end">
+          <ThemeToggle />
+        </div>
         <header className="mb-10 text-center md:mb-14">
           <p className="text-sm font-medium uppercase tracking-widest text-accent">
             HR intelligence
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white md:text-4xl">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white md:text-4xl">
             ResumeIQ
           </h1>
-          <p className="mx-auto mt-3 max-w-lg text-slate-400">
+          <p className="mx-auto mt-3 max-w-lg text-slate-600 dark:text-slate-400">
             Set screening criteria, then analyze one resume or rank up to 10
             applicants with AI scoring and a PDF report.
           </p>
@@ -265,10 +279,10 @@ export default function Home() {
           <div className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-white">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
                   Criteria input
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-600 dark:text-slate-500">
                   Fill manually, or paste a job description and extract criteria.
                 </p>
               </div>
@@ -277,11 +291,10 @@ export default function Home() {
                   type="button"
                   onClick={() => setCriteriaInputMode("manual")}
                   disabled={busy}
-                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 ${
-                    criteriaInputMode === "manual"
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 ${criteriaInputMode === "manual"
                       ? "bg-accent text-navy-950"
-                      : "bg-white/10 text-slate-300 hover:bg-white/15"
-                  }`}
+                      : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
+                    }`}
                 >
                   Manual criteria
                 </button>
@@ -289,20 +302,19 @@ export default function Home() {
                   type="button"
                   onClick={() => setCriteriaInputMode("jd")}
                   disabled={busy}
-                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 ${
-                    criteriaInputMode === "jd"
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 ${criteriaInputMode === "jd"
                       ? "bg-accent text-navy-950"
-                      : "bg-white/10 text-slate-300 hover:bg-white/15"
-                  }`}
+                      : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
+                    }`}
                 >
                   Paste job description
                 </button>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none sm:flex-row sm:items-end sm:justify-between">
               <div className="flex-1">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   Load preset
                 </label>
                 <div className="mt-1.5 flex gap-2">
@@ -310,7 +322,7 @@ export default function Home() {
                     value={presetSelectedId}
                     onChange={(e) => onApplyPreset(e.target.value)}
                     disabled={presetLoading || busy}
-                    className="h-11 w-full rounded-lg border border-white/10 bg-navy-950/40 px-3 text-sm text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-navy-950/40 dark:text-slate-200"
                   >
                     <option value="">
                       {presetLoading ? "Loading…" : "Select a preset"}
@@ -325,18 +337,20 @@ export default function Home() {
                     type="button"
                     onClick={() => void loadPresets()}
                     disabled={presetLoading || busy}
-                    className="inline-flex h-11 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                   >
                     Refresh
                   </button>
                 </div>
                 {presetError ? (
-                  <p className="mt-2 text-xs text-rose-200">{presetError}</p>
+                  <p className="mt-2 text-xs text-rose-700 dark:text-rose-200">
+                    {presetError}
+                  </p>
                 ) : null}
               </div>
 
               <div className="flex-1">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   Save as preset
                 </label>
                 <div className="mt-1.5 flex gap-2">
@@ -345,7 +359,7 @@ export default function Home() {
                     onChange={(e) => setPresetName(e.target.value)}
                     disabled={presetSaveBusy || busy}
                     placeholder="e.g. Senior React Engineer"
-                    className="h-11 w-full rounded-lg border border-white/10 bg-navy-950/40 px-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-navy-950/40 dark:text-slate-200 dark:placeholder:text-slate-500"
                   />
                   <button
                     type="button"
@@ -380,22 +394,20 @@ export default function Home() {
             <button
               type="button"
               onClick={() => switchMode("single")}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                mode === "single"
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${mode === "single"
                   ? "bg-accent text-navy-950"
-                  : "bg-white/10 text-slate-300 hover:bg-white/15"
-              }`}
+                  : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
+                }`}
             >
               Analyze one resume
             </button>
             <button
               type="button"
               onClick={() => switchMode("batch")}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                mode === "batch"
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${mode === "batch"
                   ? "bg-accent text-navy-950"
-                  : "bg-white/10 text-slate-300 hover:bg-white/15"
-              }`}
+                  : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
+                }`}
             >
               Rank up to 10
             </button>
@@ -417,7 +429,7 @@ export default function Home() {
 
           {hint && (
             <div
-              className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
+              className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100"
               role="alert"
             >
               {hint}
@@ -430,7 +442,7 @@ export default function Home() {
                 type="button"
                 onClick={analyze}
                 disabled={!canRunSingle}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-accent px-8 py-3 text-sm font-semibold text-navy-950 shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-accent px-8 py-3 text-sm font-semibold text-navy-950 shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-navy-950"
               >
                 {busy ? "Analyzing…" : "Analyze resume"}
               </button>
@@ -439,7 +451,7 @@ export default function Home() {
                 type="button"
                 onClick={rankApplicants}
                 disabled={!canRunBatch}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-accent px-8 py-3 text-sm font-semibold text-navy-950 shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-accent px-8 py-3 text-sm font-semibold text-navy-950 shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-navy-950"
               >
                 {busy ? "Ranking…" : "Rank applicants"}
               </button>
@@ -450,7 +462,23 @@ export default function Home() {
 
           {result && !busy && mode === "single" && (
             <div className="space-y-3">
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!result) return;
+                    setFormattedResumeBusy(true);
+                    try {
+                      await downloadFormattedResumePdf(result);
+                    } finally {
+                      setFormattedResumeBusy(false);
+                    }
+                  }}
+                  disabled={!canDownloadSinglePdf}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                >
+                  {formattedResumeBusy ? "Building PDF…" : "Formatted Resume"}
+                </button>
                 <button
                   type="button"
                   onClick={async () => {
@@ -463,9 +491,9 @@ export default function Home() {
                     }
                   }}
                   disabled={!canDownloadSinglePdf}
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                 >
-                  {singlePdfBusy ? "Building PDF…" : "Download PDF"}
+                  {singlePdfBusy ? "Building PDF…" : "AI Result"}
                 </button>
               </div>
               <ResumeResult data={result} criteria={criteria} />

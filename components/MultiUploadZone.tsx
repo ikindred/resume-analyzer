@@ -119,7 +119,7 @@ export function MultiUploadZone({
         }}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className="group relative w-full rounded-xl border-2 border-dashed border-navy-500/50 bg-white/5 px-6 py-10 text-center transition-colors hover:border-accent/60 hover:bg-white/[0.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 disabled:cursor-not-allowed disabled:opacity-60 min-h-[160px] flex flex-col items-center justify-center"
+        className="group relative flex min-h-[160px] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center transition-colors hover:border-accent/60 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-navy-500/50 dark:bg-white/5 dark:hover:bg-white/[0.07] dark:focus-visible:ring-offset-navy-950"
       >
         <input
           ref={inputRef}
@@ -148,13 +148,13 @@ export function MultiUploadZone({
               />
             </svg>
           </span>
-          <p className="text-sm font-medium text-slate-200">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
             Drop up to {MAX_RESUME_FILES} resumes, or{" "}
             <span className="text-accent underline decoration-accent/50 underline-offset-2 group-hover:decoration-accent">
               browse
             </span>
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-600 dark:text-slate-500">
             PDF or Word (.docx) · max 5MB each
           </p>
         </div>
@@ -165,9 +165,9 @@ export function MultiUploadZone({
           {files.map((f, i) => (
             <li
               key={`${f.name}-${i}-${f.size}`}
-              className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-navy-900/40 px-3 py-2 text-sm"
+              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 text-sm dark:border-white/10 dark:bg-navy-900/40"
             >
-              <span className="min-w-0 truncate text-slate-200">
+              <span className="min-w-0 truncate text-slate-900 dark:text-slate-200">
                 {f.name}{" "}
                 <span className="text-slate-500">· {formatBytes(f.size)}</span>
               </span>
@@ -175,7 +175,7 @@ export function MultiUploadZone({
                 type="button"
                 disabled={disabled}
                 onClick={() => removeAt(i)}
-                className="shrink-0 rounded px-2 py-1 text-xs font-medium text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 disabled:opacity-50"
+                className="shrink-0 rounded px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-100 hover:text-rose-800 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
               >
                 Remove
               </button>
@@ -189,7 +189,7 @@ export function MultiUploadZone({
           type="button"
           disabled={disabled}
           onClick={clear}
-          className="mt-2 text-xs font-medium text-slate-500 underline decoration-slate-600 underline-offset-2 hover:text-slate-400"
+          className="mt-2 text-xs font-medium text-slate-600 underline decoration-slate-400 underline-offset-2 hover:text-slate-800 dark:text-slate-500 dark:decoration-slate-600 dark:hover:text-slate-400"
         >
           Clear all
         </button>

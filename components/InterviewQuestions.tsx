@@ -47,13 +47,13 @@ export function InterviewQuestions({ analysis, criteria }: Props) {
   };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-6 py-6 sm:px-10">
+    <section className="rounded-xl border border-slate-200 bg-white px-6 py-6 dark:border-slate-600 dark:bg-slate-800/60 sm:px-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">
             Interview questions
           </h2>
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Generated from the resume analysis and your criteria.
           </p>
         </div>
@@ -61,7 +61,7 @@ export function InterviewQuestions({ analysis, criteria }: Props) {
           type="button"
           onClick={generate}
           disabled={busy}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:bg-accent dark:text-navy-950 dark:hover:bg-accent-hover"
         >
           {busy ? "Generating…" : questions ? "Regenerate" : "Generate"}
         </button>
@@ -69,7 +69,7 @@ export function InterviewQuestions({ analysis, criteria }: Props) {
 
       {error ? (
         <div
-          className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
+          className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-500/30 dark:bg-rose-950/40 dark:text-rose-100"
           role="alert"
         >
           {error}
@@ -78,26 +78,33 @@ export function InterviewQuestions({ analysis, criteria }: Props) {
 
       {questions ? (
         questions.length ? (
-          <ol className="mt-5 space-y-4 text-sm text-slate-800">
+          <ol className="mt-5 space-y-4 text-sm text-slate-800 dark:text-slate-200">
             {questions.map((q, i) => (
-              <li key={i} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <li
+                key={i}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-900/80"
+              >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     {q.topic}
                   </span>
                 </div>
-                <p className="mt-2 font-semibold text-slate-900">{q.question}</p>
-                <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                <p className="mt-2 font-semibold text-slate-900 dark:text-white">
+                  {q.question}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                   {q.why}
                 </p>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="mt-4 text-sm text-slate-600">No questions returned.</p>
+          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+            No questions returned.
+          </p>
         )
       ) : (
-        <p className="mt-4 text-sm text-slate-600">
+        <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
           Click Generate to create a tailored interview plan.
         </p>
       )}
