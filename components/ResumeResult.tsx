@@ -244,16 +244,44 @@ export function ResumeResult({
 
         <SectionTitle>Education / credentials / certificates</SectionTitle>
         <div className="mt-4 space-y-6 text-sm text-slate-800 dark:text-slate-200">
-          {(data.education?.length ? data.education : []).map((edu, i) => (
-            <div key={`${edu.school}-${i}`}>
-              <p className="font-bold uppercase text-slate-950 dark:text-white">
-                {edu.degree || "—"}
-              </p>
-              <p className="mt-1 text-slate-700 dark:text-slate-300">
-                {[edu.school, edu.year].filter(Boolean).join(" · ") || "—"}
-              </p>
-            </div>
-          ))}
+          {(data.education?.length ? data.education : []).map((edu, i) => {
+            const degree = edu.degree?.trim();
+            const year = edu.year?.trim();
+            const school = edu.school?.trim();
+            const hasHeader = Boolean(degree || year);
+            return (
+              <div key={`${school ?? "edu"}-${i}`}>
+                {degree && year ? (
+                  <div className="flex w-full items-baseline justify-between gap-4 font-bold text-slate-950 dark:text-white">
+                    <span className="min-w-0 flex-1 uppercase">{degree}</span>
+                    <span className="shrink-0 text-right font-bold normal-case text-slate-800 dark:text-slate-200">
+                      {year}
+                    </span>
+                  </div>
+                ) : degree ? (
+                  <p className="font-bold uppercase text-slate-950 dark:text-white">
+                    {degree}
+                  </p>
+                ) : year ? (
+                  <p className="font-bold normal-case text-slate-950 dark:text-white">
+                    {year}
+                  </p>
+                ) : null}
+                {school ? (
+                  <p
+                    className={`font-medium text-slate-700 dark:text-slate-300 ${
+                      hasHeader ? "mt-1" : ""
+                    }`}
+                  >
+                    {school}
+                  </p>
+                ) : null}
+                {!degree && !year && !school ? (
+                  <p className="text-slate-600 dark:text-slate-500">—</p>
+                ) : null}
+              </div>
+            );
+          })}
           {!data.education?.length ? (
             <p className="text-slate-600 dark:text-slate-500">—</p>
           ) : null}

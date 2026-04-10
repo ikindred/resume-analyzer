@@ -621,9 +621,49 @@ export async function downloadFormattedResumePdf(
   await skip(headingBelowGap);
   const edu = analysis.education ?? [];
   for (const e of edu) {
-    if (e.degree?.trim()) await drawLines(e.degree.trim(), body, true);
-    const schoolLine = [e.school, e.year].filter(Boolean).join(" ");
-    if (schoolLine.trim()) await drawLines(schoolLine.trim(), body);
+    const degreeRaw = e.degree?.trim() ?? "";
+    const yearRaw = e.year?.trim() ?? "";
+    const schoolRaw = e.school?.trim() ?? "";
+    if (degreeRaw && yearRaw) {
+      const f = fontBold;
+      const size = body;
+      const step = Math.max(12, size * formattedLeading);
+      const minGap = 14;
+      const duration = sanitizePdfWinAnsi(yearRaw);
+      const dateW = f.widthOfTextAtSize(duration, size);
+      const rightX = pageWidth - margin - dateW;
+      const leftMax = Math.max(36, rightX - margin - minGap);
+      const titleLines = wrapLine(degreeRaw, f, size, leftMax);
+      const color = rgb(0.1, 0.1, 0.12);
+      for (let li = 0; li < titleLines.length; li++) {
+        const ln = titleLines[li];
+        await ensureSpace(step + 2);
+        if (ln) {
+          page.drawText(ln, {
+            x: margin,
+            y,
+            size,
+            font: f,
+            color,
+          });
+        }
+        if (li === 0) {
+          page.drawText(duration, {
+            x: rightX,
+            y,
+            size,
+            font: f,
+            color,
+          });
+        }
+        y -= step;
+      }
+    } else if (degreeRaw) {
+      await drawLines(degreeRaw, body, true);
+    } else if (yearRaw) {
+      await drawLines(yearRaw, body, true);
+    }
+    if (schoolRaw) await drawLines(schoolRaw, body);
     await skip(blockGap + 2);
   }
   if (!edu.length) await drawLines("—", body);
