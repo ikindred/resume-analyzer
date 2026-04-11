@@ -493,7 +493,7 @@ export async function downloadFormattedResumePdf(
   let y = pageHeight - topInset;
 
   const ensureSpace = async (need: number) => {
-    if (y < margin + need) {
+    while (need > 0 && y < margin + need) {
       const next = await addPageWithLetterhead(pdf, letterhead);
       page = next.page;
       pageWidth = next.width;
@@ -705,7 +705,17 @@ export async function downloadFormattedResumePdf(
     await skip(sectionGap);
   }
 
-  const jobs = analysis.experience ?? [];
+  const jobs = [...(analysis.experience ?? [])].sort((a, b) => {
+    // Sort by start date descending (most recent first)
+    // "Present" or unparseable dates treated as Date.now()
+    const parseStart = (duration: string) => {
+      const part = duration.split(/[-–]/)[0].trim();
+      if (!part) return 0;
+      const d = new Date(part);
+      return isNaN(d.getTime()) ? Date.now() : d.getTime();
+    };
+    return parseStart(b.duration) - parseStart(a.duration);
+  });
   await drawLines("PROFESSIONAL EXPERIENCE", section, true);
   await skip(headingBelowGap);
   for (let ji = 0; ji < jobs.length; ji++) {
