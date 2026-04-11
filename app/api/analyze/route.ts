@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { analyzeResume } from "@/lib/analyzeResume";
+import { extractNameFromPdfVision } from "@/lib/extractNameFromPdfVision";
 import { extractResumeText } from "@/lib/extractResumeText";
 import { parseHrCriteriaJson } from "@/lib/hrCriteria";
 import { getResumeFileKind } from "@/lib/resumeFileFormats";
+import { transcribeScannedPdfVision } from "@/lib/transcribeScannedPdfVision";
 
 export const runtime = "nodejs";
 
@@ -51,7 +53,9 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await entry.arrayBuffer());
-    const extracted = await extractResumeText(kind, buffer);
+    const extracted = await extractResumeText(kind, buffer, {
+      preserveEmptyPdfForOcr: kind === "pdf",
+    });
 
     if ("error" in extracted) {
       switch (extracted.error.kind) {
@@ -90,13 +94,53 @@ export async function POST(request: Request) {
       }
     }
 
-    const analysis = await analyzeResume(extracted.text, criteria, {
+    let resumeText = extracted.text;
+    let extractedTextForClient = extracted.text;
+
+    if (
+      kind === "pdf" &&
+      extracted.pdfTextKind === "image-only"
+    ) {
+      const ocrText = await transcribeScannedPdfVision(buffer);
+      const ocrTrimmed = ocrText?.trim() ?? "";
+      if (ocrTrimmed.length < 100) {
+        return NextResponse.json(
+          {
+            error:
+              "Could not extract text from this resume. Please upload a text-based PDF or a clearer scan.",
+          },
+          { status: 400 },
+        );
+      }
+      resumeText = ocrTrimmed;
+      extractedTextForClient = ocrTrimmed;
+    }
+
+    let visionName = "";
+    if (kind === "pdf" && extracted.pdfTextKind !== "image-only") {
+      visionName = await extractNameFromPdfVision(buffer);
+    }
+
+    const analysis = await analyzeResume(resumeText, criteria, {
       fileName: entry.name,
       model: requestedModel,
     });
+
+    if (kind === "pdf" && visionName.trim()) {
+      const visionTrimmed = visionName.trim();
+      const visionTokens = visionTrimmed.split(/\s+/).filter(Boolean).length;
+      const extractedName = analysis.candidateName?.trim() ?? "";
+      const extractedTokens = extractedName.length
+        ? extractedName.split(/\s+/).filter(Boolean).length
+        : 0;
+      if (visionTokens > extractedTokens) {
+        analysis.candidateName = visionTrimmed;
+      }
+    }
+
     return NextResponse.json({
       analysis,
-      extractedText: extracted.text,
+      extractedText: extractedTextForClient,
     });
   } catch (err) {
     const message =
