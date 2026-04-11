@@ -58,11 +58,6 @@ export function looksLikeJobTitleOrCertification(name: string): boolean {
 
   if (t.length > 55) return true;
 
-  const upper = t.toUpperCase();
-  if (t.length > 32 && upper === t && /[A-Z]/.test(t)) {
-    return true;
-  }
-
   const rolePatterns = [
     /\bSAP\b/i,
     /\bCERTIFIED\b/i,
@@ -300,6 +295,19 @@ function preferRicherCompatibleName(
   return richer!.trim();
 }
 
+/** Merge filename / header heuristics so a shorter model name can pick up middle names from the PDF. */
+function mergeNameFromSources(
+  base: string,
+  sources: ReadonlyArray<string | null | undefined>,
+): string {
+  let m = base.trim();
+  for (const s of sources) {
+    const next = preferRicherCompatibleName(m, s ?? null);
+    if (next.trim()) m = next.trim();
+  }
+  return m;
+}
+
 /**
  * Prefer verbatim extraction; if it’s clearly a title/cert or empty, use file name
  * or a short line above the email in extracted text.
@@ -311,25 +319,22 @@ export function resolveCandidateName(
 ): string {
   const trimmed = extractedName.trim();
   const fromFile = fileName ? parseNameFromFileName(fileName) : null;
+  const guessHead = guessNameFromFirstLines(resumeText);
+  const guessEmail = guessNameFromLinesAboveEmail(resumeText);
+  const enrichers = [fromFile, guessHead, guessEmail] as const;
 
   if (!trimmed) {
-    return (
-      fromFile ??
-      guessNameFromFirstLines(resumeText) ??
-      guessNameFromLinesAboveEmail(resumeText) ??
-      "Candidate"
-    );
+    const merged = mergeNameFromSources("", [...enrichers]);
+    return merged || "Candidate";
   }
 
   if (!looksLikeJobTitleOrCertification(trimmed)) {
-    let merged = preferRicherCompatibleName(trimmed, fromFile);
-    merged = preferRicherCompatibleName(merged, guessNameFromFirstLines(resumeText));
-    return merged;
+    return mergeNameFromSources(trimmed, [...enrichers]) || trimmed;
   }
 
   if (fromFile) return fromFile;
 
-  const fromText = guessNameFromLinesAboveEmail(resumeText);
+  const fromText = guessEmail ?? guessHead;
   if (fromText) return fromText;
 
   return trimmed;
