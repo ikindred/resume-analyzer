@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Recommendation, ResumeAnalysis } from "@/lib/analyzeResume";
 import {
-  effectiveJobResponsibilities,
+  getJobResponsibilityRenderModel,
   safeCertificateArray,
 } from "@/lib/analyzeResume";
 import type { HrCriteria } from "@/lib/hrCriteria";
@@ -165,7 +165,11 @@ export function ResumeResult({
         <SectionTitle>Professional experience</SectionTitle>
         <ul className="mt-4 list-none space-y-8">
           {(data.experience?.length ? data.experience : []).map((job, i) => {
-            const jobResponsibilities = effectiveJobResponsibilities(job);
+            const respModel = getJobResponsibilityRenderModel(job);
+            const hasResp =
+              respModel.mode === "flat"
+                ? respModel.items.length > 0
+                : respModel.blocks.length > 0;
             const projects =
               job.projectsInclude?.filter((p) => p.trim()) ?? [];
             return (
@@ -190,21 +194,49 @@ export function ResumeResult({
                   {job.location.trim()}
                 </p>
               ) : null}
-              {jobResponsibilities.length ? (
+              {hasResp ? (
                 <>
                   <p className="mt-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
                     Job responsibilities:
                   </p>
-                  <ul className="mt-2 list-none space-y-2 text-sm text-slate-800 dark:text-slate-200">
-                    {jobResponsibilities.map((h, j) => (
-                      <li key={j} className="flex gap-2">
-                        <span className="shrink-0" aria-hidden>
-                          ●
-                        </span>
-                        <span>{h}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {respModel.mode === "flat" ? (
+                    <ul className="mt-2 list-none space-y-2 text-sm text-slate-800 dark:text-slate-200">
+                      {respModel.items.map((h, j) => (
+                        <li key={j} className="flex gap-2">
+                          <span className="shrink-0" aria-hidden>
+                            ●
+                          </span>
+                          <span>{h}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="mt-2 space-y-3 text-sm text-slate-800 dark:text-slate-200">
+                      {respModel.blocks.map((block, bi) => (
+                        <div key={bi}>
+                          {block.subtitle.trim() ? (
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">
+                              {block.subtitle.trim()}
+                            </p>
+                          ) : null}
+                          <ul
+                            className={`list-none space-y-2 ${
+                              block.subtitle.trim() ? "mt-2 pl-4" : ""
+                            }`}
+                          >
+                            {block.items.map((h, j) => (
+                              <li key={j} className="flex gap-2">
+                                <span className="shrink-0" aria-hidden>
+                                  ●
+                                </span>
+                                <span>{h}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : null}
               {job.specialistLead?.trim() ? (
@@ -240,6 +272,49 @@ export function ResumeResult({
         </ul>
         {!data.experience?.length ? (
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-500">—</p>
+        ) : null}
+
+        {(data.standaloneProjects ?? []).some((p) => p.title?.trim()) ? (
+          <>
+            <SectionTitle>Projects</SectionTitle>
+            <ul className="mt-4 list-none space-y-8">
+              {(data.standaloneProjects ?? [])
+                .filter((p) => p.title?.trim())
+                .map((proj, pi) => (
+                  <li key={`${proj.title}-${pi}`}>
+                    <div className="flex w-full items-baseline justify-between gap-4 text-sm font-bold text-slate-950 dark:text-white">
+                      <span className="min-w-0 flex-1 uppercase">
+                        {proj.title.trim()}
+                      </span>
+                      {proj.duration?.trim() ? (
+                        <span className="shrink-0 text-right font-bold normal-case text-slate-800 dark:text-slate-200">
+                          {proj.duration.trim()}
+                        </span>
+                      ) : null}
+                    </div>
+                    {proj.companyOrContext?.trim() ? (
+                      <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        {proj.companyOrContext.trim()}
+                      </p>
+                    ) : null}
+                    {(proj.bullets ?? []).filter((b) => b.trim()).length ? (
+                      <ul className="mt-2 list-none space-y-2 text-sm text-slate-800 dark:text-slate-200">
+                        {proj.bullets
+                          ?.filter((b) => b.trim())
+                          .map((b, j) => (
+                            <li key={j} className="flex gap-2">
+                              <span className="shrink-0" aria-hidden>
+                                ●
+                              </span>
+                              <span>{b.trim()}</span>
+                            </li>
+                          ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                ))}
+            </ul>
+          </>
         ) : null}
 
         <SectionTitle>Education / credentials / certificates</SectionTitle>

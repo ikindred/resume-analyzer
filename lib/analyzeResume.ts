@@ -34,6 +34,21 @@ export interface CertificateEntry {
   datedItems?: CertificateDatedGroup[];
 }
 
+/** Subsection under one role: optional title (empty = bullets before first titled group) + duty lines. */
+export interface JobResponsibilityBlock {
+  /** Verbatim subsection heading, or "" for lead-in bullets before the first titled group */
+  subtitle: string;
+  items: string[];
+}
+
+/** Top-level PROJECTS section entry (not tied to one employer). */
+export interface StandaloneProjectEntry {
+  title: string;
+  duration?: string;
+  companyOrContext?: string;
+  bullets: string[];
+}
+
 export interface ExperienceEntry {
   title: string;
   company: string;
@@ -42,6 +57,11 @@ export interface ExperienceEntry {
   location?: string;
   /** Bullets under “Job Responsibilities” or general role duties when not split further */
   jobResponsibilities: string[];
+  /**
+   * When the resume groups duties under inline subsection titles (e.g. Health, Safety, and Environment),
+   * preserve structure here. If present, jobResponsibilities is normalized to the concatenation of all items.
+   */
+  jobResponsibilityBlocks?: JobResponsibilityBlock[];
   /** Verbatim block under headings like Specialist / Digital Services Lead */
   specialistLead?: string;
   /** Bullets under “Projects include” (or similar) */
@@ -65,6 +85,8 @@ export interface ResumeAnalysis {
   skills: string[];
   /** When the resume splits skills into sections, preserve each block; optional. */
   skillsSections?: SkillsSection[];
+  /** Major PROJECTS / Key Projects section outside employment; not per-job projectsInclude. */
+  standaloneProjects?: StandaloneProjectEntry[];
   experience: ExperienceEntry[];
   education: Array<{
     degree: string;
@@ -126,6 +148,14 @@ The JSON must match this exact shape and key names:
       "items": ["string"]
     }
   ],
+  "standaloneProjects": [
+    {
+      "title": "string (project name or heading line as printed)",
+      "duration": "string (date range if printed; else \"\")",
+      "companyOrContext": "string (org or context line if printed; else \"\")",
+      "bullets": ["string"]
+    }
+  ],
   "experience": [
     {
       "title": "string (job title / role line)",
@@ -133,6 +163,12 @@ The JSON must match this exact shape and key names:
       "duration": "string (date range exactly as printed)",
       "location": "string (city/region line if printed; else \"\")",
       "jobResponsibilities": ["string"],
+      "jobResponsibilityBlocks": [
+        {
+          "subtitle": "string (verbatim subsection title, or empty string \"\" for bullets that appear before the first titled subsection)",
+          "items": ["string (duty bullets under that subsection only)"]
+        }
+      ],
       "specialistLead": "string (verbatim under Specialist / Digital Services Lead or similar; else \"\")",
       "projectsInclude": ["string"]
     }
@@ -169,9 +205,11 @@ Transcription rules (critical):
 - skills: Include EVERY line from ALL skills-related areas in one flat list in document order (tools, technologies, competency bullets, checkmarks, dashes). Do not merge, summarize, or drop lines.
 - skillsSections: When the resume has one or more labeled skill blocks, create one object per printed heading with that heading copied EXACTLY as it appears (e.g. SKILLS, Soft Skills, TECHNICAL SKILLS, FUNCTIONAL SKILLS). Put every bullet/line under that heading in items. Do not invent headings, do not rename TECHNICAL SKILLS to something else, and do not put skill bullets under summary. Use [] only when the resume has a single undivided list with no subsection titles; then use the flat skills array only. If skillsSections is non-empty, skills must list the same lines in order (concatenation of all sections).
 - experience: One object per employment, internship, or work-history block (as labeled on the resume). Copy title, company, and duration EXACTLY as written. Put title + duration on one conceptual line in the data (title and duration are separate fields; the UI prints them together). Put company on the next line (company field). Copy location into location when a place line appears for that role.
-- experience / jobResponsibilities: Copy EVERY bullet or sentence under "Job Responsibilities", role duties, or generic responsibility bullets for that employer. If the resume uses that exact heading, only those bullets go here. If there is no separate heading, put all responsibility bullets here. Use [] when there are none.
+- experience / jobResponsibilityBlocks: When duties under one role are grouped under inline subsection TITLES (e.g. bold lines like "Business Solution", "Health, Safety, and Environment", or a dash-prefixed line that is clearly a category label followed by real task bullets—not a task itself), use jobResponsibilityBlocks to preserve structure. Each object: subtitle = the heading copied verbatim (strip a leading bullet/dash/hyphen from the heading text if the resume used one on the title line only); items = only the task bullets under that heading. Use subtitle "" for the first block when bullets appear before any titled subsection. When the resume has NO such titled subgroups, omit jobResponsibilityBlocks entirely and use only jobResponsibilities.
+- experience / jobResponsibilities: When jobResponsibilityBlocks is omitted, copy EVERY bullet or sentence under "Job Responsibilities", role duties, or generic responsibility bullets for that employer here. When jobResponsibilityBlocks is used, you may omit jobResponsibilities or use [] (the system will flatten items from blocks). If you include both, blocks take precedence for structure; still list the same duty lines in blocks only, not duplicated as a flat list.
 - experience / specialistLead: Copy the full text under headings like "Specialist / Digital Services Lead" (or the same wording as on the resume). Use "" when that subsection is absent or empty.
-- experience / projectsInclude: Copy bullets/lines under "Projects include" (or the same wording as on the resume). Use [] when absent or empty. Do not duplicate the same bullets in jobResponsibilities unless they literally appear twice on the resume.
+- experience / projectsInclude: Copy bullets/lines under "Projects include" (or the same wording on the resume) when that subsection appears INSIDE a single job entry. Use [] when absent or empty. Do not put the standalone resume section PROJECTS here—that belongs in standaloneProjects.
+- standaloneProjects: When the resume has a major section such as PROJECTS, KEY PROJECTS, or SELECTED PROJECTS that is NOT nested under one employer (its own heading and optional date range, separate from work history), transcribe each project as one object: title, duration, companyOrContext, and bullets as printed. Use [] when there is no such section. This is NOT the same as experience[].projectsInclude (in-job project lists).
 - education: Academic degrees and diploma programs from schools/universities only, plus government-issued professional registrations/licenses shown as eligibility (e.g. Registered Civil Engineer with issuing body and date). Copy degree name, school, and year/graduation text verbatim.
 - education (exclusions): NEVER put vendor or product certifications here (e.g. SAP Certified, AWS Certified, Microsoft Certified, PMP, Scrum Master certificates, "SAP CERTIFIED ASSOCIATE", course completion badges) even if the resume groups them visually under "Education and Eligibility" or similar — those belong ONLY in certificates.
 - certificates: Vendor/professional/product certifications and credential programs (SAP, cloud certs, etc.). For each distinct certification family, use one object with name = the main title line. If the resume lists exams or modules under month/year subheadings, use datedItems: one object per printed period with items = the lines under that period (preserve wording). If a cert is a single line with no sub-structure, use { "name": "..." } and omit datedItems or use []. Use [] when there are no such certifications.
@@ -244,6 +282,7 @@ export type ResumeBodyFacts = Pick<
   | "summary"
   | "skills"
   | "skillsSections"
+  | "standaloneProjects"
   | "experience"
   | "education"
   | "certificates"
@@ -331,6 +370,89 @@ export function effectiveJobResponsibilities(job: ExperienceEntry): string[] {
   return job.highlights?.filter((s) => s.trim()) ?? [];
 }
 
+export type JobResponsibilityRenderModel =
+  | { mode: "flat"; items: string[] }
+  | { mode: "blocks"; blocks: JobResponsibilityBlock[] };
+
+/** Prefer structured blocks when present; otherwise flat bullets for PDF/UI. */
+export function getJobResponsibilityRenderModel(
+  job: ExperienceEntry,
+): JobResponsibilityRenderModel {
+  const blocks = job.jobResponsibilityBlocks?.filter(
+    (b) => (b.items?.filter((s) => s.trim()).length ?? 0) > 0,
+  );
+  if (blocks && blocks.length > 0) {
+    return { mode: "blocks", blocks };
+  }
+  return { mode: "flat", items: effectiveJobResponsibilities(job) };
+}
+
+function parseJobResponsibilityBlocks(
+  v: unknown,
+  expIndex: number,
+): JobResponsibilityBlock[] | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v)) {
+    throw new Error(`Invalid experience[${expIndex}].jobResponsibilityBlocks`);
+  }
+  if (v.length === 0) return undefined;
+  const out: JobResponsibilityBlock[] = [];
+  for (let j = 0; j < v.length; j++) {
+    const item = v[j];
+    if (typeof item !== "object" || item === null) {
+      throw new Error(
+        `Invalid experience[${expIndex}].jobResponsibilityBlocks[${j}]`,
+      );
+    }
+    const b = item as Record<string, unknown>;
+    const subtitle = isString(b.subtitle) ? b.subtitle.trim() : "";
+    if (!isStringArray(b.items)) {
+      throw new Error(
+        `Invalid experience[${expIndex}].jobResponsibilityBlocks[${j}].items`,
+      );
+    }
+    const items = b.items.map((s) => s.trim()).filter(Boolean);
+    if (items.length === 0) continue;
+    out.push({ subtitle, items });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function parseStandaloneProjects(v: unknown): StandaloneProjectEntry[] | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v)) {
+    throw new Error("Missing or invalid standaloneProjects");
+  }
+  if (v.length === 0) return undefined;
+  const out: StandaloneProjectEntry[] = [];
+  for (let i = 0; i < v.length; i++) {
+    const raw = v[i];
+    if (typeof raw !== "object" || raw === null) {
+      throw new Error(`Invalid standaloneProjects[${i}]`);
+    }
+    const p = raw as Record<string, unknown>;
+    if (!isString(p.title) || !p.title.trim()) {
+      throw new Error(`Invalid standaloneProjects[${i}].title`);
+    }
+    const duration =
+      isString(p.duration) && p.duration.trim() ? p.duration.trim() : undefined;
+    const companyOrContext =
+      isString(p.companyOrContext) && p.companyOrContext.trim()
+        ? p.companyOrContext.trim()
+        : undefined;
+    const bullets = isStringArray(p.bullets)
+      ? p.bullets.map((s) => s.trim()).filter(Boolean)
+      : [];
+    out.push({
+      title: p.title.trim(),
+      duration,
+      companyOrContext,
+      bullets,
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 function validateSkillsSections(v: unknown): SkillsSection[] | undefined {
   if (v === undefined || v === null) return undefined;
   if (!Array.isArray(v)) {
@@ -393,8 +515,14 @@ function validateResumeBody(data: unknown): ResumeBodyFacts {
     if (!isString(e.title) || !isString(e.company) || !isString(e.duration)) {
       throw new Error(`Invalid experience[${i}] fields`);
     }
+    const jobResponsibilityBlocks = parseJobResponsibilityBlocks(
+      e.jobResponsibilityBlocks,
+      i,
+    );
     let jobResponsibilities: string[] = [];
-    if (isStringArray(e.jobResponsibilities)) {
+    if (jobResponsibilityBlocks && jobResponsibilityBlocks.length > 0) {
+      jobResponsibilities = jobResponsibilityBlocks.flatMap((b) => b.items);
+    } else if (isStringArray(e.jobResponsibilities)) {
       jobResponsibilities = e.jobResponsibilities
         .map((s) => s.trim())
         .filter(Boolean);
@@ -410,7 +538,7 @@ function validateResumeBody(data: unknown): ResumeBodyFacts {
       isString(e.specialistLead) && e.specialistLead.trim()
         ? e.specialistLead.trim()
         : undefined;
-    return {
+    const entry: ExperienceEntry = {
       title: e.title,
       company: e.company,
       duration: e.duration,
@@ -419,6 +547,10 @@ function validateResumeBody(data: unknown): ResumeBodyFacts {
       specialistLead,
       projectsInclude,
     };
+    if (jobResponsibilityBlocks?.length) {
+      entry.jobResponsibilityBlocks = jobResponsibilityBlocks;
+    }
+    return entry;
   });
 
   if (!Array.isArray(o.education)) {
@@ -440,6 +572,8 @@ function validateResumeBody(data: unknown): ResumeBodyFacts {
     throw new Error("Missing or invalid trainings");
   }
 
+  const standaloneProjects = parseStandaloneProjects(o.standaloneProjects);
+
   return {
     candidateName: o.candidateName,
     contactInfo: {
@@ -450,6 +584,7 @@ function validateResumeBody(data: unknown): ResumeBodyFacts {
     summary: o.summary,
     skills,
     skillsSections,
+    standaloneProjects,
     experience,
     education,
     certificates,

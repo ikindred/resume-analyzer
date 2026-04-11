@@ -4,7 +4,7 @@ import type { HrCriteria } from "@/lib/hrCriteria";
 import type { RankedCandidate } from "@/lib/rankResult";
 import type { CertificateEntry, ResumeAnalysis } from "@/lib/analyzeResume";
 import {
-  effectiveJobResponsibilities,
+  getJobResponsibilityRenderModel,
   safeCertificateArray,
 } from "@/lib/analyzeResume";
 
@@ -580,14 +580,32 @@ export async function downloadFormattedResumePdf(
       }
       if (job.company?.trim()) await drawLines(job.company.trim(), body);
       if (job.location?.trim()) await drawLines(job.location.trim(), body);
-      const responsibilities = effectiveJobResponsibilities(job);
-      if (responsibilities.length) {
+      const respModel = getJobResponsibilityRenderModel(job);
+      const hasResp =
+        respModel.mode === "flat"
+          ? respModel.items.length > 0
+          : respModel.blocks.length > 0;
+      if (hasResp) {
         await skip(6);
         await drawLines("Job Responsibilities:", label, true);
         await skip(headingBelowGap - 2);
-        for (const h of responsibilities) {
-          await drawLines(`● ${h}`, body);
-          await skip(bulletAfterGap);
+        const subBulletIndent = 14;
+        if (respModel.mode === "flat") {
+          for (const h of respModel.items) {
+            await drawLines(`● ${h}`, body);
+            await skip(bulletAfterGap);
+          }
+        } else {
+          for (const block of respModel.blocks) {
+            if (block.subtitle.trim()) {
+              await drawLines(block.subtitle.trim(), body, true);
+              await skip(4);
+            }
+            for (const line of block.items) {
+              await drawLines(`● ${line}`, body, false, subBulletIndent);
+              await skip(bulletAfterGap);
+            }
+          }
         }
       }
       if (job.specialistLead?.trim()) {
@@ -607,6 +625,67 @@ export async function downloadFormattedResumePdf(
           await drawLines(`● ${p}`, body);
           await skip(bulletAfterGap);
         }
+      }
+      await skip(blockGap);
+    }
+    await skip(sectionGap - blockGap);
+  }
+
+  const standaloneProjects = (analysis.standaloneProjects ?? []).filter(
+    (p) => p.title?.trim(),
+  );
+  if (standaloneProjects.length) {
+    await drawLines("PROJECTS", section, true);
+    await skip(headingBelowGap);
+    for (const proj of standaloneProjects) {
+      const titleRaw = proj.title.trim();
+      const durationRaw = proj.duration?.trim() ?? "";
+      if (titleRaw && durationRaw) {
+        const f = fontBold;
+        const size = body;
+        const step = Math.max(12, size * formattedLeading);
+        const minGap = 14;
+        const duration = sanitizePdfWinAnsi(durationRaw);
+        const dateW = f.widthOfTextAtSize(duration, size);
+        const rightX = pageWidth - margin - dateW;
+        const leftMax = Math.max(36, rightX - margin - minGap);
+        const titleLines = wrapLine(titleRaw, f, size, leftMax);
+        const color = rgb(0.1, 0.1, 0.12);
+        for (let li = 0; li < titleLines.length; li++) {
+          const ln = titleLines[li];
+          await ensureSpace(step + 2);
+          if (ln) {
+            page.drawText(ln, {
+              x: margin,
+              y,
+              size,
+              font: f,
+              color,
+            });
+          }
+          if (li === 0) {
+            page.drawText(duration, {
+              x: rightX,
+              y,
+              size,
+              font: f,
+              color,
+            });
+          }
+          y -= step;
+        }
+      } else if (titleRaw) {
+        await drawLines(titleRaw, body, true);
+      } else if (durationRaw) {
+        await drawLines(durationRaw, body, true);
+      }
+      if (proj.companyOrContext?.trim()) {
+        await drawLines(proj.companyOrContext.trim(), body);
+      }
+      for (const b of proj.bullets ?? []) {
+        if (!b.trim()) continue;
+        await drawLines(`● ${b.trim()}`, body);
+        await skip(bulletAfterGap);
       }
       await skip(blockGap);
     }
