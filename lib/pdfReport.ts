@@ -46,6 +46,8 @@ function sanitizePdfWinAnsi(text: string): string {
     .replace(/\u25cf/g, "-")
     .replace(/\u2022/g, "-")
     .replace(/\u2043/g, "-")
+    .replace(/\u25cb/g, "") // ○ hollow bullet — strip entirely
+    .replace(/\u25e6/g, "") // ◦ white bullet — strip entirely
     .replace(/\u2013/g, "-")
     .replace(/\u2014/g, "-")
     .replace(/\u2212/g, "-")
