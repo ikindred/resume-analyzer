@@ -1,6 +1,5 @@
-import "@/lib/installPdfNodePolyfills";
 import mammoth from "mammoth";
-import { PDFParse, PasswordException } from "pdf-parse";
+import { extractText } from "unpdf";
 import type { ResumeFileKind } from "@/lib/resumeFileFormats";
 
 export type ExtractError =
@@ -9,33 +8,33 @@ export type ExtractError =
   | { kind: "bad_docx" }
   | { kind: "empty_docx" };
 
+function isPasswordPdfError(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  if (e.name === "PasswordException") return true;
+  return /need a password|incorrect password|no password given|password required/i.test(
+    e.message,
+  );
+}
+
 export async function extractResumeText(
   kind: ResumeFileKind,
   buffer: Buffer,
 ): Promise<{ text: string } | { error: ExtractError }> {
   if (kind === "pdf") {
-    const parser = new PDFParse({ data: buffer });
     try {
-      const textResult = await parser.getText();
-      const text = textResult.text?.trim() ?? "";
-      if (!text.length) {
+      const { text } = await extractText(new Uint8Array(buffer), {
+        mergePages: true,
+      });
+      const trimmed = text?.trim() ?? "";
+      if (!trimmed.length) {
         return { error: { kind: "empty_pdf" } };
       }
-      return { text };
+      return { text: trimmed };
     } catch (e) {
-      const isPassword =
-        e instanceof PasswordException ||
-        (e instanceof Error && e.name === "PasswordException");
-      if (isPassword) {
+      if (isPasswordPdfError(e)) {
         return { error: { kind: "password_pdf" } };
       }
       throw e;
-    } finally {
-      try {
-        await parser.destroy();
-      } catch {
-        /* ignore */
-      }
     }
   }
 
