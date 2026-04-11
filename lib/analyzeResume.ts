@@ -193,7 +193,7 @@ The JSON must match this exact shape and key names:
           "items": ["string (duty bullets under that subsection only)"]
         }
       ],
-      "specialistLead": "string (verbatim under Specialist / Digital Services Lead when present; else \"\" OR exactly \"NO_RESPONSIBILITIES_FOUND\" when RULE 3 applies)",
+      "specialistLead": "string (verbatim under Specialist / Digital Services Lead when present; else \"\")",
       "projectsInclude": ["string"]
     }
   ],
@@ -224,8 +224,6 @@ RULE 1 — Mislabeled section detection: The source PDF may show a section title
 
 RULE 2 — Multi-section skills capture: When the resume has more than one labeled skills block (e.g. both FUNCTIONAL SKILLS and TECHNICAL SKILLS, or one correctly labeled block plus one classified under RULE 1), BOTH sections MUST appear in skillsSections[] as separate objects in document reading order. Never collapse, merge, or drop an entire block—losing a whole skills section is a critical extraction failure. The flat skills[] array MUST equal the concatenation of all skillsSections[].items in that same order.
 
-RULE 3 — No job description bullets: When a work experience entry (e.g. a dated role at an employer) has zero bullets or substantive lines under Job Responsibilities, duties, responsibilities, projects-within-role, or jobResponsibilityBlocks—nothing to transcribe as task content—set jobResponsibilities to [] and set specialistLead to exactly "NO_RESPONSIBILITIES_FOUND" so downstream rendering can surface the gap. Do NOT silently leave an unexplained empty duty area; use this exact sentinel string.
-
 RULE 4 — Verbatim copy, never paraphrase: Every entry in skills[], every skillsSections[].items[] line, every jobResponsibilities[] line, every jobResponsibilityBlocks[].items[] line, projectsInclude[], standaloneProjects[].bullets[], education strings, and certificate lines must be copied character-for-character from the resume (same words, punctuation, and spacing as printed—only JSON string escaping may differ). Do not summarize, merge, split, reword, tighten, or "clean up" any line. If a bullet is 80 words long in the source, it must be 80 words in the output.
 
 Transcription rules (critical):
@@ -240,8 +238,8 @@ Transcription rules (critical):
 - skillsSections: Whenever the resume has distinct skill blocks with their own headings, create one object per block. Copy each printed heading EXACTLY (e.g. FUNCTIONAL SKILLS, SOFT SKILLS) except when RULE 1 requires the corrected title "TECHNICAL SKILLS". Put every substantive line under that heading into items in visual reading order. If both TECHNICAL SKILLS and FUNCTIONAL SKILLS (or similar) appear—or one block is recovered under RULE 1—include EVERY block with all lines (RULE 2); do not drop a section because PDF text extraction reordering is imperfect; use section headings in the text to decide grouping. Do not invent headings except the RULE 1 correction to "TECHNICAL SKILLS". Omit a skillsSections object entirely when a heading exists but has no substantive lines under it. Use skillsSections: [] only when the resume has a single undivided skills list with no subsection titles (then use the flat skills array only). If skillsSections is non-empty, skills must list the same lines in order (concatenation of all sections).
 - experience: One object per employment, internship, or work-history block (as labeled on the resume). Copy title, company, and duration EXACTLY as written. Put title + duration on one conceptual line in the data (title and duration are separate fields; the UI prints them together). Put company on the next line (company field). Copy location into location when a place line appears for that role.
 - experience / jobResponsibilityBlocks: When duties under one role are grouped under inline subsection TITLES (e.g. bold lines like "Business Solution", "Health, Safety, and Environment", or a dash-prefixed line that is clearly a category label followed by real task bullets—not a task itself), use jobResponsibilityBlocks to preserve structure. Each object: subtitle = the heading copied verbatim (strip a leading bullet/dash/hyphen from the heading text if the resume used one on the title line only); items = only the task bullets under that heading. Use subtitle "" for the first block when bullets appear before any titled subsection. When the resume has NO such titled subgroups, omit jobResponsibilityBlocks entirely and use only jobResponsibilities.
-- experience / jobResponsibilities: When jobResponsibilityBlocks is omitted, copy EVERY bullet or sentence under "Job Responsibilities", role duties, or generic responsibility bullets for that employer here—each line verbatim per RULE 4. When jobResponsibilityBlocks is used, you may omit jobResponsibilities or use [] (the system will flatten items from blocks). If you include both, blocks take precedence for structure; still list the same duty lines in blocks only, not duplicated as a flat list. When there is nothing to copy for that role, follow RULE 3.
-- experience / specialistLead: When RULE 3 applies (no duty bullets for the role), set specialistLead to exactly "NO_RESPONSIBILITIES_FOUND" (this overrides any Specialist subsection). Otherwise copy the full text under headings like "Specialist / Digital Services Lead" (or the same wording on the resume) verbatim; use "" when that subsection is absent or empty.
+- experience / jobResponsibilities: When jobResponsibilityBlocks is omitted, copy EVERY bullet or sentence under "Job Responsibilities", role duties, or generic responsibility bullets for that employer here—each line verbatim per RULE 4. When jobResponsibilityBlocks is used, you may omit jobResponsibilities or use [] (the system will flatten items from blocks). If you include both, blocks take precedence for structure; still list the same duty lines in blocks only, not duplicated as a flat list. When there is nothing to copy for that role, use [] for jobResponsibilities.
+- experience / specialistLead: Copy the full text under headings like "Specialist / Digital Services Lead" (or the same wording on the resume) verbatim when that subsection exists and has content. If specialistLead has no content, omit it. Never use placeholder or sentinel strings.
 - experience / projectsInclude: Copy bullets/lines under "Projects include" (or the same wording on the resume) when that subsection appears INSIDE a single job entry. Use [] when absent or empty. Do not put the standalone resume section PROJECTS here—that belongs in standaloneProjects.
 - standaloneProjects: When the resume has a major section such as PROJECTS, KEY PROJECTS, or SELECTED PROJECTS that is NOT nested under one employer (its own heading and optional date range, separate from work history), transcribe each project as one object: title, duration, companyOrContext, and bullets as printed. Use [] when there is no such section. This is NOT the same as experience[].projectsInclude (in-job project lists).
 - education: Academic degrees and diploma programs from schools/universities only, plus government-issued professional registrations/licenses shown as eligibility (e.g. Registered Civil Engineer with issuing body and date). Copy degree name, school, and year/graduation text verbatim.
@@ -579,7 +577,9 @@ function validateResumeBody(data: unknown): ResumeBodyFacts {
     const location =
       isString(e.location) && e.location.trim() ? e.location.trim() : undefined;
     const specialistLead =
-      isString(e.specialistLead) && e.specialistLead.trim()
+      isString(e.specialistLead) &&
+      e.specialistLead.trim() &&
+      e.specialistLead.trim() !== "NO_RESPONSIBILITIES_FOUND"
         ? e.specialistLead.trim()
         : undefined;
     const entry: ExperienceEntry = {

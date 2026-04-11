@@ -10,6 +10,9 @@ import {
 } from "@/lib/analyzeResume";
 
 const LETTERHEAD_URL = "/letterhead.pdf";
+
+/** Must match extraction contract in analyzeResume (do not import from that module here). */
+const NO_RESPONSIBILITIES_SENTINEL = "NO_RESPONSIBILITIES_FOUND";
 /** Body text starts this many points below the top when a letterhead is used (clears logo/header art). */
 const LETTERHEAD_TOP_RESERVE_PTS = 135;
 
@@ -496,21 +499,34 @@ export async function downloadFormattedResumePdf(
     await skip(sectionGap);
   }
 
-  const sections = analysis.skillsSections
-    ?.map((s) => ({
-      title: s.title?.trim() ?? "",
+  /** Labeled blocks with substantive items only; document order preserved. */
+  const structuredSkillSections = (analysis.skillsSections ?? [])
+    .map((s) => ({
+      title: (s.title ?? "").trim(),
       items: (s.items ?? []).filter(isSubstantiveResumeLine),
     }))
     .filter((s) => s.title.length > 0 && s.items.length > 0);
+
   const flatSkills = (analysis.skills ?? []).filter(isSubstantiveResumeLine);
 
-  if (sections && sections.length > 0) {
-    for (let i = 0; i < sections.length; i++) {
-      const sec = sections[i];
+  type SkillRenderBlock = { title: string; items: string[] };
+  const skillBlocks: SkillRenderBlock[] =
+    structuredSkillSections.length > 0
+      ? structuredSkillSections.map((s) => ({
+          title: s.title,
+          items: s.items,
+        }))
+      : flatSkills.length > 0
+        ? [{ title: "FUNCTIONAL SKILLS", items: flatSkills }]
+        : [];
+
+  if (skillBlocks.length > 0) {
+    for (let i = 0; i < skillBlocks.length; i++) {
+      const sec = skillBlocks[i];
       if (i > 0) await skip(sectionGap);
-      await drawLines(sec.title.trim(), section, true);
+      await drawLines(sec.title, section, true);
       await skip(headingBelowGap);
-      for (const item of sec.items ?? []) {
+      for (const item of sec.items) {
         if (item.trim()) {
           await drawLines(`• ${item.trim()}`, body);
           await skip(bulletAfterGap);
@@ -518,114 +534,108 @@ export async function downloadFormattedResumePdf(
       }
     }
     await skip(sectionGap);
-  } else if (flatSkills.length) {
-    await drawLines("SKILLS:", section, true);
-    await skip(headingBelowGap);
-    for (const s of flatSkills) {
-      await drawLines(`• ${s}`, body);
-      await skip(bulletAfterGap);
-    }
-    await skip(sectionGap);
   }
 
   const jobs = analysis.experience ?? [];
-  if (jobs.length) {
-    await drawLines("PROFESSIONAL EXPERIENCE", section, true);
-    await skip(headingBelowGap);
-    for (const job of jobs) {
-      const titleRaw = job.title?.trim() ?? "";
-      const durationRaw = job.duration?.trim() ?? "";
-      if (titleRaw && durationRaw) {
-        const f = fontBold;
-        const size = body;
-        const step = Math.max(12, size * formattedLeading);
-        const minGap = 14;
-        const duration = sanitizePdfWinAnsi(durationRaw);
-        const dateW = f.widthOfTextAtSize(duration, size);
-        const rightX = pageWidth - margin - dateW;
-        const leftMax = Math.max(36, rightX - margin - minGap);
-        const titleLines = wrapLine(titleRaw, f, size, leftMax);
-        const color = rgb(0.1, 0.1, 0.12);
-        for (let li = 0; li < titleLines.length; li++) {
-          const ln = titleLines[li];
-          await ensureSpace(step + 2);
-          if (ln) {
-            page.drawText(ln, {
-              x: margin,
-              y,
-              size,
-              font: f,
-              color,
-            });
-          }
-          if (li === 0) {
-            page.drawText(duration, {
-              x: rightX,
-              y,
-              size,
-              font: f,
-              color,
-            });
-          }
-          y -= step;
+  await drawLines("PROFESSIONAL EXPERIENCE", section, true);
+  await skip(headingBelowGap);
+  for (const job of jobs) {
+    const titleRaw = job.title?.trim() ?? "";
+    const durationRaw = job.duration?.trim() ?? "";
+    if (titleRaw && durationRaw) {
+      const f = fontBold;
+      const size = body;
+      const step = Math.max(12, size * formattedLeading);
+      const minGap = 14;
+      const duration = sanitizePdfWinAnsi(durationRaw);
+      const dateW = f.widthOfTextAtSize(duration, size);
+      const rightX = pageWidth - margin - dateW;
+      const leftMax = Math.max(36, rightX - margin - minGap);
+      const titleLines = wrapLine(titleRaw, f, size, leftMax);
+      const color = rgb(0.1, 0.1, 0.12);
+      for (let li = 0; li < titleLines.length; li++) {
+        const ln = titleLines[li];
+        await ensureSpace(step + 2);
+        if (ln) {
+          page.drawText(ln, {
+            x: margin,
+            y,
+            size,
+            font: f,
+            color,
+          });
         }
-      } else if (titleRaw) {
-        await drawLines(titleRaw, body, true);
-      } else if (durationRaw) {
-        await drawLines(durationRaw, body, true);
-      }
-      if (job.company?.trim()) await drawLines(job.company.trim(), body);
-      if (job.location?.trim()) await drawLines(job.location.trim(), body);
-      const respModel = getJobResponsibilityRenderModel(job);
-      const hasResp =
-        respModel.mode === "flat"
-          ? respModel.items.length > 0
-          : respModel.blocks.length > 0;
-      if (hasResp) {
-        await skip(6);
-        await drawLines("Job Responsibilities:", label, true);
-        await skip(headingBelowGap - 2);
-        const subBulletIndent = 14;
-        if (respModel.mode === "flat") {
-          for (const h of respModel.items) {
-            await drawLines(`● ${h}`, body);
-            await skip(bulletAfterGap);
-          }
-        } else {
-          for (const block of respModel.blocks) {
-            if (block.subtitle.trim()) {
-              await drawLines(block.subtitle.trim(), body, true);
-              await skip(4);
-            }
-            for (const line of block.items) {
-              await drawLines(`● ${line}`, body, false, subBulletIndent);
-              await skip(bulletAfterGap);
-            }
-          }
+        if (li === 0) {
+          page.drawText(duration, {
+            x: rightX,
+            y,
+            size,
+            font: f,
+            color,
+          });
         }
+        y -= step;
       }
-      if (job.specialistLead?.trim()) {
-        await skip(6);
-        await drawLines("Specialist / Digital Services Lead:", label, true);
-        await skip(headingBelowGap - 2);
-        await drawLines(job.specialistLead.trim(), body);
-      }
-      const projects = (job.projectsInclude ?? [])
-        .map((p) => p.trim())
-        .filter(Boolean);
-      if (projects.length) {
-        await skip(6);
-        await drawLines("Projects include:", label, true);
-        await skip(headingBelowGap - 2);
-        for (const p of projects) {
-          await drawLines(`● ${p}`, body);
+    } else if (titleRaw) {
+      await drawLines(titleRaw, body, true);
+    } else if (durationRaw) {
+      await drawLines(durationRaw, body, true);
+    }
+    if (job.company?.trim()) await drawLines(job.company.trim(), body);
+    if (job.location?.trim()) await drawLines(job.location.trim(), body);
+    const respModel = getJobResponsibilityRenderModel(job);
+    const hasResp =
+      respModel.mode === "flat"
+        ? respModel.items.length > 0
+        : respModel.blocks.length > 0;
+    const specialistRaw = job.specialistLead?.trim() ?? "";
+    const specialistIsSentinel =
+      specialistRaw === NO_RESPONSIBILITIES_SENTINEL;
+    const showDuties = hasResp && !specialistIsSentinel;
+    if (showDuties) {
+      await skip(6);
+      await drawLines("Job Responsibilities:", label, true);
+      await skip(headingBelowGap - 2);
+      const subBulletIndent = 14;
+      if (respModel.mode === "flat") {
+        for (const h of respModel.items) {
+          await drawLines(`● ${h}`, body);
           await skip(bulletAfterGap);
         }
+      } else {
+        for (const block of respModel.blocks) {
+          if (block.subtitle.trim()) {
+            await drawLines(block.subtitle.trim(), body, true);
+            await skip(4);
+          }
+          for (const line of block.items) {
+            await drawLines(`● ${line}`, body, false, subBulletIndent);
+            await skip(bulletAfterGap);
+          }
+        }
       }
-      await skip(blockGap);
     }
-    await skip(sectionGap - blockGap);
+    if (specialistRaw.length > 0 && !specialistIsSentinel) {
+      await skip(6);
+      await drawLines("Specialist / Digital Services Lead:", label, true);
+      await skip(headingBelowGap - 2);
+      await drawLines(specialistRaw, body);
+    }
+    const projects = (job.projectsInclude ?? [])
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (projects.length) {
+      await skip(6);
+      await drawLines("Projects include:", label, true);
+      await skip(headingBelowGap - 2);
+      for (const p of projects) {
+        await drawLines(`● ${p}`, body);
+        await skip(bulletAfterGap);
+      }
+    }
+    await skip(blockGap);
   }
+  await skip(sectionGap - blockGap);
 
   const standaloneProjects = (analysis.standaloneProjects ?? []).filter(
     (p) => p.title?.trim(),
@@ -741,7 +751,6 @@ export async function downloadFormattedResumePdf(
     if (schoolRaw) await drawLines(schoolRaw, body);
     await skip(blockGap + 2);
   }
-  if (!edu.length) await drawLines("—", body);
 
   const certs = safeCertificateArray(analysis.certificates);
   if (certs.length) {
