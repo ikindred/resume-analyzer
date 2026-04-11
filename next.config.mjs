@@ -8,10 +8,19 @@ const nextConfig = {
       "@napi-rs/canvas",
       "dommatrix",
     ],
-    // Dynamic require of @napi-rs/canvas from pdfjs is easy to miss in NFT traces.
+    // pdf.js fake worker dynamic-imports pdf.worker.mjs (sibling of pdf.mjs); NFT often skips it.
+    // Include legacy build assets; optional wasm/cmaps help some PDFs.
     outputFileTracingIncludes: {
-      "/api/analyze": ["./node_modules/@napi-rs/canvas/**/*"],
-      "/api/rank": ["./node_modules/@napi-rs/canvas/**/*"],
+      "/api/analyze": [
+        "./node_modules/pdfjs-dist/legacy/build/**/*",
+        "./node_modules/pdfjs-dist/legacy/image_decoders/**/*",
+        "./node_modules/@napi-rs/canvas/**/*",
+      ],
+      "/api/rank": [
+        "./node_modules/pdfjs-dist/legacy/build/**/*",
+        "./node_modules/pdfjs-dist/legacy/image_decoders/**/*",
+        "./node_modules/@napi-rs/canvas/**/*",
+      ],
     },
   },
 };
