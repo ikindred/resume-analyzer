@@ -22,6 +22,10 @@ export async function POST(request: Request) {
         : null,
     );
 
+    const modelField = formData.get("model");
+    const requestedModel =
+      typeof modelField === "string" ? modelField : undefined;
+
     const files = formData.getAll("files").filter((f): f is File => f instanceof File);
 
     if (files.length === 0) {
@@ -92,6 +96,7 @@ export async function POST(request: Request) {
       try {
         const analysis = await analyzeResume(extracted.text, criteria, {
           fileName: file.name,
+          model: requestedModel,
         });
         const rankScore = computeRankScore(analysis);
         results.push({ fileName: file.name, analysis, rankScore });

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { resolveAnalysisModel } from "@/lib/analyzeModels";
 import { resolveCandidateName } from "@/lib/candidateNameResolution";
 import type { HrCriteria } from "@/lib/hrCriteria";
 import { EMPTY_HR_CRITERIA } from "@/lib/hrCriteria";
@@ -120,12 +121,6 @@ const RECOMMENDATIONS: Recommendation[] = [
 
 /** Cap extracted resume text before sending to the model (token safety). */
 const MAX_RESUME_CHARS = 50_000;
-
-const DEFAULT_MODEL = "gpt-4o-mini";
-
-function resolveModel(): string {
-  return process.env.OPENAI_ANALYZE_MODEL?.trim() || DEFAULT_MODEL;
-}
 
 function buildExtractionSystemPrompt(): string {
   return `You are a precise document transcriber for resumes. Your ONLY job is to copy structured data OUT of the resume text into JSON. You are NOT a writer—do not paraphrase, summarize, translate, "improve", normalize names, fix spelling, or infer facts that are not written in the resume.
@@ -671,6 +666,8 @@ function mergeAnalysis(body: ResumeBodyFacts, screening: ResumeScreening): Resum
 export type AnalyzeResumeOptions = {
   /** Original upload file name; used to recover the real name when the PDF header is image-only. */
   fileName?: string;
+  /** Chat model for extraction + screening; must match an id in `lib/analyzeModels.ts` allowlist. */
+  model?: string;
 };
 
 export async function analyzeResume(
@@ -684,7 +681,7 @@ export async function analyzeResume(
   }
 
   const openai = new OpenAI({ apiKey: key });
-  const model = resolveModel();
+  const model = resolveAnalysisModel(options?.model);
   const text =
     resumeText.length > MAX_RESUME_CHARS
       ? resumeText.slice(0, MAX_RESUME_CHARS)

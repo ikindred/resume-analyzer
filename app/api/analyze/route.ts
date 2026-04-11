@@ -18,6 +18,10 @@ export async function POST(request: Request) {
         : null,
     );
 
+    const modelField = formData.get("model");
+    const requestedModel =
+      typeof modelField === "string" ? modelField : undefined;
+
     if (!(entry instanceof File)) {
       return NextResponse.json(
         {
@@ -88,6 +92,7 @@ export async function POST(request: Request) {
 
     const analysis = await analyzeResume(extracted.text, criteria, {
       fileName: entry.name,
+      model: requestedModel,
     });
     return NextResponse.json({
       analysis,

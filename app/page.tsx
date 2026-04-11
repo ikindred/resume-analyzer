@@ -16,6 +16,12 @@ import {
   downloadSingleResumePdf,
 } from "@/lib/pdfReport";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  ANALYSIS_MODEL_OPTIONS,
+  DEFAULT_ANALYSIS_MODEL,
+} from "@/lib/analyzeModels";
+
+const ANALYSIS_MODEL_STORAGE_KEY = "resumeiq-analysis-model";
 
 type Mode = "single" | "batch";
 type CriteriaInputMode = "manual" | "jd";
@@ -43,6 +49,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResumeAnalysis | null>(null);
   const [rankResult, setRankResult] = useState<RankApiResponse | null>(null);
+  const [analysisModel, setAnalysisModel] = useState(DEFAULT_ANALYSIS_MODEL);
 
   const onFileSelect = useCallback((f: File | null, hint: string | null) => {
     setFile(f);
@@ -107,6 +114,20 @@ export default function Home() {
     void loadPresets();
   }, [loadPresets]);
 
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(ANALYSIS_MODEL_STORAGE_KEY);
+      if (
+        v &&
+        ANALYSIS_MODEL_OPTIONS.some((m) => m.id === v)
+      ) {
+        setAnalysisModel(v);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const presetOptions = useMemo(() => {
     return presetItems.map((p) => ({ id: p.id, name: p.name }));
   }, [presetItems]);
@@ -160,6 +181,7 @@ export default function Home() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("criteria", criteriaJson);
+    formData.append("model", analysisModel);
 
     try {
       const res = await fetch("/api/analyze", {
@@ -201,6 +223,7 @@ export default function Home() {
     const formData = new FormData();
     batchFiles.forEach((f) => formData.append("files", f));
     formData.append("criteria", criteriaJson);
+    formData.append("model", analysisModel);
 
     try {
       const res = await fetch("/api/rank", {
@@ -411,6 +434,40 @@ export default function Home() {
             >
               Rank up to 10
             </button>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none">
+            <label
+              htmlFor="analysis-model"
+              className="block text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+            >
+              Analysis model
+            </label>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-500">
+              Used for resume extraction and screening. Stronger models cost more
+              per request.
+            </p>
+            <select
+              id="analysis-model"
+              value={analysisModel}
+              onChange={(e) => {
+                const next = e.target.value;
+                setAnalysisModel(next);
+                try {
+                  localStorage.setItem(ANALYSIS_MODEL_STORAGE_KEY, next);
+                } catch {
+                  /* ignore */
+                }
+              }}
+              disabled={busy}
+              className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-navy-950/40 dark:text-slate-200"
+            >
+              {ANALYSIS_MODEL_OPTIONS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {mode === "single" ? (
