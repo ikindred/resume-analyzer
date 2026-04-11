@@ -176,6 +176,9 @@ function guessNameFromStitchedHeaderLines(lines: string[], headLineCount: number
     }
 
     const parts: string[][] = [];
+    /** Longest valid stitch in this block (avoid returning after 2 lines when a 3rd line completes the surname). */
+    let best: string | null = null;
+
     for (let j = i; j < Math.min(i + 3, limit); j++) {
       const line = lines[j];
       if (line.length < 2 || line.length > 90 || /@/.test(line) || looksLikeJobTitleOrCertification(line)) {
@@ -194,10 +197,12 @@ function guessNameFromStitchedHeaderLines(lines: string[], headLineCount: number
       if (parts.length >= 2 && flat.length >= 2 && flat.length <= 6) {
         const candidate = flat.join(" ");
         if (!looksLikeJobTitleOrCertification(candidate)) {
-          return candidate;
+          best = candidate;
         }
       }
     }
+
+    if (best) return best;
   }
   return null;
 }
