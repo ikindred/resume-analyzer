@@ -21,7 +21,7 @@ export type ExtractResumeTextOptions = {
 };
 
 export function classifyResumeText(text: string): ResumePdfTextKind {
-  return text.trim().length < 100 ? "image-only" : "full-text";
+  return text.trim().length < 500 ? "image-only" : "full-text";
 }
 
 function isPasswordPdfError(e: unknown): boolean {
