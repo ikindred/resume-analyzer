@@ -3,12 +3,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 
+/** Same rules as `lib/databaseUrl.ts` (pg sslmode forward-compat warning). */
+function normalizeDatabaseUrl(url) {
+  let out = url.trim();
+  out = out.replace(/\bsslmode=require\b/gi, "sslmode=verify-full");
+  out = out.replace(/\bsslmode=prefer\b/gi, "sslmode=verify-full");
+  out = out.replace(/\bsslmode=verify-ca\b/gi, "sslmode=verify-full");
+  return out;
+}
+
 function getDatabaseUrl() {
   const url = process.env.DATABASE_URL;
   if (!url || !url.trim()) {
     throw new Error("DATABASE_URL is not configured");
   }
-  return url;
+  return normalizeDatabaseUrl(url);
 }
 
 async function main() {

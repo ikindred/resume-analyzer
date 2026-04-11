@@ -1,3 +1,4 @@
+import "@/lib/installPdfNodePolyfills";
 import mammoth from "mammoth";
 import { PDFParse, PasswordException } from "pdf-parse";
 import type { ResumeFileKind } from "@/lib/resumeFileFormats";

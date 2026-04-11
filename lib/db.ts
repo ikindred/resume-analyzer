@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { normalizeDatabaseUrl } from "@/lib/databaseUrl";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -10,7 +11,7 @@ function getDatabaseUrl(): string {
   if (!url?.trim()) {
     throw new Error("DATABASE_URL is not configured");
   }
-  return url;
+  return normalizeDatabaseUrl(url);
 }
 
 export function getPool(): Pool {
