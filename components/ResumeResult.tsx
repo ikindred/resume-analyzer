@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Recommendation, ResumeAnalysis } from "@/lib/analyzeResume";
 import {
   getJobResponsibilityRenderModel,
+  isSubstantiveResumeLine,
   safeCertificateArray,
 } from "@/lib/analyzeResume";
 import type { HrCriteria } from "@/lib/hrCriteria";
@@ -82,15 +83,19 @@ export function ResumeResult({
 }) {
   const badge = recommendationBadgeClass(data.recommendation);
   const verdict = interviewVerdict(data.recommendation);
-  const skills = data.skills?.filter((s) => s.trim()) ?? [];
+  const skills = (data.skills ?? []).filter(isSubstantiveResumeLine);
+  const skillsSections = (data.skillsSections ?? [])
+    .map((sec) => ({
+      title: sec.title?.trim() ?? "",
+      items: (sec.items ?? []).filter(isSubstantiveResumeLine),
+    }))
+    .filter((sec) => sec.title.length > 0 && sec.items.length > 0);
+  const showSkills =
+    skillsSections.length > 0 ||
+    (skillsSections.length === 0 && skills.length > 0);
   const certs = safeCertificateArray(data.certificates);
   const trainings = data.trainings?.filter((s) => s.trim()) ?? [];
-
-  const contactParts = [
-    data.contactInfo.email,
-    data.contactInfo.phone,
-    data.contactInfo.location,
-  ].filter(Boolean);
+  const profileText = data.summary?.trim() ?? "";
 
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 shadow-xl dark:border-white/10 dark:shadow-2xl leading-[1.5]">
@@ -98,69 +103,70 @@ export function ResumeResult({
       <div className="bg-white px-6 py-8 text-slate-900 dark:bg-slate-950 sm:px-10 sm:py-10 dark:text-slate-100">
         <p className="mb-6 text-xs text-slate-600 dark:text-slate-500">
           The sections below transcribe the uploaded resume (wording preserved).
-          Screening and scores in the gray panel are AI-generated from that
-          text.
+          Phone, email, and mailing address are not shown here. Screening and
+          scores in the gray panel are AI-generated from that text.
         </p>
         <SectionTitle>Candidate name:</SectionTitle>
         <p className="mt-3 text-xl font-bold uppercase tracking-tight text-slate-950 sm:text-2xl dark:text-white">
           {data.candidateName?.trim() || "Candidate"}
         </p>
-        {contactParts.length > 0 ? (
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            {contactParts.join(" · ")}
-          </p>
+
+        {profileText ? (
+          <section className="mt-6 pb-14 sm:mt-8 sm:pb-16">
+            <SectionTitle>Profile (from resume):</SectionTitle>
+            <p className="mt-3 whitespace-pre-line text-sm text-slate-800 dark:text-slate-200">
+              {profileText}
+            </p>
+          </section>
         ) : null}
 
-        <section className="mt-6 pb-14 sm:mt-8 sm:pb-16">
-          <SectionTitle>Profile (from resume):</SectionTitle>
-          <p className="mt-3 whitespace-pre-line text-sm text-slate-800 dark:text-slate-200">
-            {data.summary?.trim() || "—"}
-          </p>
-        </section>
-
-        {data.skillsSections && data.skillsSections.length > 0 ? (
-          <div className="space-y-12 sm:space-y-14">
-            {data.skillsSections.map((sec, si) => (
-              <div key={`${sec.title}-${si}`}>
-                <SectionTitle className="border-slate-400/80 pb-2 dark:border-slate-500/80">
-                  {sec.title}
-                </SectionTitle>
-                <ul className="mt-4 list-none space-y-2 text-sm text-slate-800 dark:text-slate-200">
-                  {(sec.items?.length ? sec.items : ["—"]).map((skill, i) => (
-                    <li key={`${skill}-${i}`} className="flex gap-2">
-                      <span
-                        className="shrink-0 text-slate-600 dark:text-slate-400"
-                        aria-hidden
-                      >
-                        •
-                      </span>
-                      <span>{skill}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <>
-            <SectionTitle className="border-slate-400/80 pb-2 dark:border-slate-500/80">
-              Skills
-            </SectionTitle>
-          <ul className="mt-4 list-none space-y-2 text-sm text-slate-800 dark:text-slate-200">
-            {(skills.length ? skills : ["—"]).map((skill, i) => (
-              <li key={`${skill}-${i}`} className="flex gap-2">
-                <span
-                  className="shrink-0 text-slate-600 dark:text-slate-400"
-                  aria-hidden
-                >
-                  •
-                </span>
-                <span>{skill}</span>
-              </li>
-            ))}
-          </ul>
-          </>
-        )}
+        {showSkills ? (
+          skillsSections.length > 0 ? (
+            <div
+              className={`space-y-12 sm:space-y-14 ${profileText ? "" : "mt-8 sm:mt-10"}`}
+            >
+              {skillsSections.map((sec, si) => (
+                <div key={`${sec.title}-${si}`}>
+                  <SectionTitle className="border-slate-400/80 pb-2 dark:border-slate-500/80">
+                    {sec.title}
+                  </SectionTitle>
+                  <ul className="mt-4 list-none space-y-2 text-sm text-slate-800 dark:text-slate-200">
+                    {sec.items.map((skill, i) => (
+                      <li key={`${skill}-${i}`} className="flex gap-2">
+                        <span
+                          className="shrink-0 text-slate-600 dark:text-slate-400"
+                          aria-hidden
+                        >
+                          •
+                        </span>
+                        <span>{skill}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={profileText ? "" : "mt-8 sm:mt-10"}>
+              <SectionTitle className="border-slate-400/80 pb-2 dark:border-slate-500/80">
+                Skills
+              </SectionTitle>
+              <ul className="mt-4 list-none space-y-2 text-sm text-slate-800 dark:text-slate-200">
+                {skills.map((skill, i) => (
+                  <li key={`${skill}-${i}`} className="flex gap-2">
+                    <span
+                      className="shrink-0 text-slate-600 dark:text-slate-400"
+                      aria-hidden
+                    >
+                      •
+                    </span>
+                    <span>{skill}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        ) : null}
 
         <SectionTitle>Professional experience</SectionTitle>
         <ul className="mt-4 list-none space-y-8">

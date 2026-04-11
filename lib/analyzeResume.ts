@@ -81,7 +81,7 @@ export interface ResumeAnalysis {
     phone: string;
     location: string;
   };
-  /** Short professional narrative from the resume (Profile / Summary / Objective prose only—not skill lists). */
+  /** Profile / summary / objective from the resume (paragraphs and/or bullet lines). Contact is omitted in API responses. */
   summary: string;
   skills: string[];
   /** When the resume splits skills into sections, preserve each block; optional. */
@@ -121,6 +121,21 @@ const RECOMMENDATIONS: Recommendation[] = [
 
 /** Cap extracted resume text before sending to the model (token safety). */
 const MAX_RESUME_CHARS = 50_000;
+
+const REDACTED_CONTACT = { email: "", phone: "", location: "" } as const;
+
+/** Drop placeholder-only bullets (e.g. "—", "·") while keeping real resume lines. */
+export function isSubstantiveResumeLine(raw: string): boolean {
+  const s = raw
+    .replace(
+      /^[\s\u2022\u25CF\u25CB\u2713\u2714\u25CB\u25CF\u00B7\u2022\u2219\-\*]+/,
+      "",
+    )
+    .trim();
+  if (!s) return false;
+  if (/^[\u2013\u2014\u2212\-\u00B7\u22C5\u2026._]+$/.test(s)) return false;
+  return true;
+}
 
 function buildExtractionSystemPrompt(): string {
   return `You are a precise document transcriber for resumes. Your ONLY job is to copy structured data OUT of the resume text into JSON. You are NOT a writer—do not paraphrase, summarize, translate, "improve", normalize names, fix spelling, or infer facts that are not written in the resume.
@@ -194,11 +209,11 @@ Transcription rules (critical):
 - candidateName: Copy the person's full name EXACTLY as it appears in the resume's primary heading (usually the largest name at the top). Include every printed given name, middle name, maternal/paternal surname, and particle—never shorten to only first and last when the resume shows more (e.g. if the heading is "SHERMAINE NARIO TOREJA", output all three name parts, not "Shermaine Toreja"). Preserve character order, capitalization, spacing, and punctuation exactly as printed (e.g. if the resume shows "TOREJAS HERMAINE", output that exact string). Do NOT reorder name parts, do NOT switch to Western given-name-first order.
 - candidateName must be a person's name (often 2–6 words when middle names or multiple surnames appear). NEVER put a job title, certification headline, or role descriptor here (e.g. lines like "SAP Certified Associate", "Implementation Consultant", "Business Analyst" belong in experience or certificates, not candidateName).
 - If the name is not present in the extracted text (common when the header is a graphic/image in the PDF so only body text was extracted), use "" for candidateName and do NOT fill it with the first headline line if that line is clearly a role or certification.
-- contactInfo: Copy emails, phone numbers, and address/location lines verbatim into the three fields. Use "" if a field is missing.
-- summary: Copy ONLY opening narrative prose: Professional Summary, Profile, About, or Objective sections when they are written as sentences/paragraphs about the candidate (goals, background, years of experience). Join multiple paragraphs with a single newline. Use "" if there is no such prose block.
-- summary must NOT contain: bulleted or checkmarked lists of tools, technologies, or competencies; lines that belong under headings such as SKILLS, TECHNICAL SKILLS, FUNCTIONAL SKILLS, CORE COMPETENCIES, EXPERTISE, KEY SKILLS, or similar—even if another part of the resume mislabels a skill list. Those lines belong ONLY in skills/skillsSections.
-- skills: Include EVERY line from ALL skills-related areas in one flat list in document order (tools, technologies, competency bullets, checkmarks, dashes). Do not merge, summarize, or drop lines.
-- skillsSections: When the resume has one or more labeled skill blocks, create one object per printed heading with that heading copied EXACTLY as it appears (e.g. SKILLS, Soft Skills, TECHNICAL SKILLS, FUNCTIONAL SKILLS). Put every bullet/line under that heading in items. Do not invent headings, do not rename TECHNICAL SKILLS to something else, and do not put skill bullets under summary. Use [] only when the resume has a single undivided list with no subsection titles; then use the flat skills array only. If skillsSections is non-empty, skills must list the same lines in order (concatenation of all sections).
+- contactInfo: Copy emails, phone numbers, and address/location lines verbatim into the three fields (needed for validation). Use "" if a field is missing.
+- summary: Professional profile / overview from sections titled or clearly acting as Professional Summary, Profile, About, Objective, Career Overview, or Executive Summary. Copy verbatim whether written as paragraphs OR as bullet/checkmark lines (many templates use bullets). Separate lines with a single newline. You may also include short opening positioning bullets that sit after the header/contact block and before the first employment entry when they are clearly about the candidate and are NOT printed under any skills heading in the source. Use "" only when the resume truly has no such profile block.
+- summary must NOT contain: email, phone, street/mailing address, or messenger handles; any line that is printed under a skills heading (TECHNICAL SKILLS, FUNCTIONAL SKILLS, SOFT SKILLS, CORE COMPETENCIES, EXPERTISE, KEY SKILLS, TOOLS, IT SKILLS, INTERPERSONAL SKILLS, LANGUAGES, etc.)—those lines belong ONLY in skills/skillsSections under that heading.
+- skills: One flat list in document order: every substantive line from all skills-related areas (hard skills, soft skills, tools, methods, competency bullets). Copy each line in full—do not shorten or merge bullets. Omit placeholder-only lines (a bullet that is only an em dash, hyphen, or dot). When labeled blocks exist on the resume, skills MUST equal the concatenation of skillsSections[].items in reading order.
+- skillsSections: Whenever the resume has distinct skill blocks with their own headings, create one object per printed heading; copy the heading EXACTLY (e.g. TECHNICAL SKILLS, FUNCTIONAL SKILLS, SOFT SKILLS). Put every substantive line under that heading into items in visual reading order. If both TECHNICAL SKILLS and FUNCTIONAL SKILLS (or similar) appear, include every block with all lines—do not drop a section because PDF text extraction reordering is imperfect; use section headings in the text to decide grouping. Do not invent headings. Omit a skillsSections object entirely when a heading exists but has no substantive lines under it. Use skillsSections: [] only when the resume has a single undivided skills list with no subsection titles (then use the flat skills array only). If skillsSections is non-empty, skills must list the same lines in order (concatenation of all sections).
 - experience: One object per employment, internship, or work-history block (as labeled on the resume). Copy title, company, and duration EXACTLY as written. Put title + duration on one conceptual line in the data (title and duration are separate fields; the UI prints them together). Put company on the next line (company field). Copy location into location when a place line appears for that role.
 - experience / jobResponsibilityBlocks: When duties under one role are grouped under inline subsection TITLES (e.g. bold lines like "Business Solution", "Health, Safety, and Environment", or a dash-prefixed line that is clearly a category label followed by real task bullets—not a task itself), use jobResponsibilityBlocks to preserve structure. Each object: subtitle = the heading copied verbatim (strip a leading bullet/dash/hyphen from the heading text if the resume used one on the title line only); items = only the task bullets under that heading. Use subtitle "" for the first block when bullets appear before any titled subsection. When the resume has NO such titled subgroups, omit jobResponsibilityBlocks entirely and use only jobResponsibilities.
 - experience / jobResponsibilities: When jobResponsibilityBlocks is omitted, copy EVERY bullet or sentence under "Job Responsibilities", role duties, or generic responsibility bullets for that employer here. When jobResponsibilityBlocks is used, you may omit jobResponsibilities or use [] (the system will flatten items from blocks). If you include both, blocks take precedence for structure; still list the same duty lines in blocks only, not duplicated as a flat list.
@@ -454,7 +469,9 @@ function validateSkillsSections(v: unknown): SkillsSection[] | undefined {
     throw new Error("Missing or invalid skillsSections");
   }
   if (v.length === 0) return undefined;
-  return v.map((item, i) => {
+  const out: SkillsSection[] = [];
+  for (let i = 0; i < v.length; i++) {
+    const item = v[i];
     if (typeof item !== "object" || item === null) {
       throw new Error(`Invalid skillsSections[${i}]`);
     }
@@ -462,8 +479,14 @@ function validateSkillsSections(v: unknown): SkillsSection[] | undefined {
     if (!isString(e.title) || !isStringArray(e.items)) {
       throw new Error(`Invalid skillsSections[${i}] fields`);
     }
-    return { title: e.title, items: e.items };
-  });
+    const title = e.title.trim();
+    const items = e.items
+      .map((s) => s.trim())
+      .filter(isSubstantiveResumeLine);
+    if (!title || items.length === 0) continue;
+    out.push({ title: e.title.trim(), items });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 function validateResumeBody(data: unknown): ResumeBodyFacts {
@@ -494,7 +517,9 @@ function validateResumeBody(data: unknown): ResumeBodyFacts {
   }
 
   const skillsSections = validateSkillsSections(o.skillsSections);
-  let skills = [...o.skills];
+  let skills = o.skills
+    .map((s) => s.trim())
+    .filter(isSubstantiveResumeLine);
   if (skillsSections && skillsSections.length > 0) {
     skills = skillsSections.flatMap((s) => s.items);
   }
@@ -663,6 +688,14 @@ function mergeAnalysis(body: ResumeBodyFacts, screening: ResumeScreening): Resum
   };
 }
 
+/** Strip PII from the object returned to clients (model still transcribes contact for validation). */
+function redactContactForClient(analysis: ResumeAnalysis): ResumeAnalysis {
+  return {
+    ...analysis,
+    contactInfo: { ...REDACTED_CONTACT },
+  };
+}
+
 export type AnalyzeResumeOptions = {
   /** Original upload file name; used to recover the real name when the PDF header is image-only. */
   fileName?: string;
@@ -758,5 +791,7 @@ export async function analyzeResume(
   }
 
   const screeningResult = validateScreening(screeningParsed);
-  return mergeAnalysis(bodyWithResolvedName, screeningResult);
+  return redactContactForClient(
+    mergeAnalysis(bodyWithResolvedName, screeningResult),
+  );
 }

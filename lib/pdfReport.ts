@@ -5,6 +5,7 @@ import type { RankedCandidate } from "@/lib/rankResult";
 import type { CertificateEntry, ResumeAnalysis } from "@/lib/analyzeResume";
 import {
   getJobResponsibilityRenderModel,
+  isSubstantiveResumeLine,
   safeCertificateArray,
 } from "@/lib/analyzeResume";
 
@@ -345,22 +346,14 @@ export async function downloadSingleResumePdf(
 
   await drawTextLines("Candidate", sub, true);
   await drawTextLines(`Name: ${analysis.candidateName || "Candidate"}`, body);
-  const contact = [
-    analysis.contactInfo.email,
-    analysis.contactInfo.phone,
-    analysis.contactInfo.location,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  if (contact) await drawTextLines(`Contact: ${contact}`, body);
   await drawTextLines(`Recommendation: ${analysis.recommendation}`, body, true);
   await drawTextLines(`Fit score: ${analysis.assessment.fitScore}/10`, body, true);
   y -= 6;
 
   await drawTextLines("Summary", sub, true);
-  await drawTextLines(analysis.summary || "—", body);
+  await drawTextLines(analysis.summary?.trim() || "—", body);
 
-  const skills = (analysis.skills ?? []).filter((s) => s.trim());
+  const skills = (analysis.skills ?? []).filter(isSubstantiveResumeLine);
   if (skills.length) {
     y -= 4;
     await drawTextLines("Skills (top)", sub, true);
@@ -503,10 +496,13 @@ export async function downloadFormattedResumePdf(
     await skip(sectionGap);
   }
 
-  const sections = analysis.skillsSections?.filter(
-    (s) => s.title?.trim() && (s.items?.length ?? 0) > 0,
-  );
-  const flatSkills = (analysis.skills ?? []).filter((s) => s.trim());
+  const sections = analysis.skillsSections
+    ?.map((s) => ({
+      title: s.title?.trim() ?? "",
+      items: (s.items ?? []).filter(isSubstantiveResumeLine),
+    }))
+    .filter((s) => s.title.length > 0 && s.items.length > 0);
+  const flatSkills = (analysis.skills ?? []).filter(isSubstantiveResumeLine);
 
   if (sections && sections.length > 0) {
     for (let i = 0; i < sections.length; i++) {
